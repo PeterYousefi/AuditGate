@@ -1,11 +1,16 @@
 // AuditGate — Single-Column Centered AI Stage Controller
-// Perplexity & Apple Intelligence Inspired • Live MongoDB Atlas HITL Governance
+// Strict Flexbox Layout • Dedicated Approvals Drawer • Reliable ElevenLabs Playback
 
 let currentThreadId = "thread_ORD_" + Math.random().toString(36).substring(2, 8).toUpperCase();
 let voiceEnabled = true;
 let currentAudio = null;
 let cachedAuditLogs = [];
+let cachedPendingRequests = [];
 let cachedPolicyLimit = 50.0;
+let audioCounter = 0;
+
+// Global in-memory cache for audio base64 data URIs (avoids HTML attribute quotation / truncation errors)
+window.audioCache = {};
 
 document.addEventListener("DOMContentLoaded", () => {
     initApp();
@@ -16,19 +21,54 @@ function initApp() {
     setupPresetButtons();
     updateThreadDisplay();
     fetchLivePolicy();
+    fetchPendingRequests();
     fetchAuditLogs();
 
-    // Background sync with MongoDB Atlas every 4 seconds
+    // Background sync with MongoDB Atlas every 3 seconds
     setInterval(() => {
         fetchLivePolicy();
+        fetchPendingRequests();
         fetchAuditLogs();
-    }, 4000);
+    }, 3000);
+}
+
+// -------------------------------------------------------------
+// Auto-Scroll Helper (Guarantees bottom messages are never hidden)
+// -------------------------------------------------------------
+
+function scrollToBottom(smooth = true) {
+    const container = document.getElementById("chat-container");
+    if (container) {
+        requestAnimationFrame(() => {
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto'
+            });
+        });
+    }
 }
 
 function updateThreadDisplay() {
     const threadElem = document.getElementById("active-thread-id");
     if (threadElem) {
         threadElem.innerText = currentThreadId;
+    }
+}
+
+// -------------------------------------------------------------
+// Browser Audio Context Unlocking (User gesture handling)
+// -------------------------------------------------------------
+
+function unlockAudio() {
+    try {
+        if (!window.audioContextInstance) {
+            window.audioContextInstance = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.audioContextInstance.state === 'suspended') {
+            window.audioContextInstance.resume();
+        }
+    } catch (e) {
+        console.warn("Audio unlock notice:", e);
     }
 }
 
@@ -43,13 +83,19 @@ function setupEventListeners() {
     const resetBtn = document.getElementById("reset-session-btn");
     const testSchemaBtn = document.getElementById("test-schema-btn");
     
-    // Drawer elements
-    const drawerOpenBtn = document.getElementById("audit-drawer-open-btn");
-    const drawerCloseBtn = document.getElementById("close-audit-drawer-btn");
-    const drawer = document.getElementById("audit-drawer");
+    // Drawers
+    const approvalsDrawerOpenBtn = document.getElementById("approvals-drawer-open-btn");
+    const approvalsDrawerCloseBtn = document.getElementById("close-approvals-drawer-btn");
+    const approvalsDrawer = document.getElementById("approvals-drawer");
+    const refreshApprovalsBtn = document.getElementById("refresh-approvals-btn");
+    const clearAllPendingBtn = document.getElementById("clear-all-pending-btn");
+
+    const auditDrawerOpenBtn = document.getElementById("audit-drawer-open-btn");
+    const auditDrawerCloseBtn = document.getElementById("close-audit-drawer-btn");
+    const auditDrawer = document.getElementById("audit-drawer");
     const refreshAuditBtn = document.getElementById("refresh-audit-logs-btn");
 
-    // BSON Modal elements
+    // BSON Modal
     const bsonModal = document.getElementById("bson-modal");
     const bsonCloseBtn = document.getElementById("close-bson-modal-btn");
     const copyBsonBtn = document.getElementById("copy-bson-btn");
@@ -58,6 +104,7 @@ function setupEventListeners() {
     if (chatForm && chatInput) {
         chatForm.addEventListener("submit", (e) => {
             e.preventDefault();
+            unlockAudio();
             const msg = chatInput.value.trim();
             if (msg) {
                 sendChatMessage(msg);
@@ -69,18 +116,23 @@ function setupEventListeners() {
     // Voice toggle
     if (voiceToggle) {
         voiceToggle.addEventListener("click", () => {
+            unlockAudio();
             voiceEnabled = !voiceEnabled;
             updateVoiceToggleButton();
             if (!voiceEnabled && currentAudio) {
                 currentAudio.pause();
                 stopAudioVisualizer();
             }
+            showToast(voiceEnabled ? "Voice output enabled (ElevenLabs)." : "Voice output muted.");
         });
     }
 
     // Reset demo session
     if (resetBtn) {
-        resetBtn.addEventListener("click", resetDemoSession);
+        resetBtn.addEventListener("click", () => {
+            unlockAudio();
+            resetDemoSession();
+        });
     }
 
     // Test Schema Guard
@@ -91,6 +143,7 @@ function setupEventListeners() {
     // Scenario chips
     document.querySelectorAll(".scenario-chip").forEach(chip => {
         chip.addEventListener("click", () => {
+            unlockAudio();
             const prompt = chip.getAttribute("data-prompt");
             if (prompt) {
                 sendChatMessage(prompt);
@@ -98,24 +151,57 @@ function setupEventListeners() {
         });
     });
 
-    // Drawer open / close
-    if (drawerOpenBtn && drawer) {
-        drawerOpenBtn.addEventListener("click", () => {
-            drawer.classList.remove("hidden");
+    // Approvals Drawer Open / Close
+    if (approvalsDrawerOpenBtn && approvalsDrawer) {
+        approvalsDrawerOpenBtn.addEventListener("click", () => {
+            approvalsDrawer.classList.remove("hidden");
+            fetchPendingRequests();
+        });
+    }
+
+    if (approvalsDrawerCloseBtn && approvalsDrawer) {
+        approvalsDrawerCloseBtn.addEventListener("click", () => {
+            approvalsDrawer.classList.add("hidden");
+        });
+    }
+
+    if (approvalsDrawer) {
+        approvalsDrawer.addEventListener("click", (e) => {
+            if (e.target === approvalsDrawer) {
+                approvalsDrawer.classList.add("hidden");
+            }
+        });
+    }
+
+    if (refreshApprovalsBtn) {
+        refreshApprovalsBtn.addEventListener("click", () => {
+            fetchPendingRequests();
+            showToast("Pending approvals refreshed.");
+        });
+    }
+
+    if (clearAllPendingBtn) {
+        clearAllPendingBtn.addEventListener("click", clearAllPendingRequests);
+    }
+
+    // Audit Log Drawer Open / Close
+    if (auditDrawerOpenBtn && auditDrawer) {
+        auditDrawerOpenBtn.addEventListener("click", () => {
+            auditDrawer.classList.remove("hidden");
             fetchAuditLogs();
         });
     }
 
-    if (drawerCloseBtn && drawer) {
-        drawerCloseBtn.addEventListener("click", () => {
-            drawer.classList.add("hidden");
+    if (auditDrawerCloseBtn && auditDrawer) {
+        auditDrawerCloseBtn.addEventListener("click", () => {
+            auditDrawer.classList.add("hidden");
         });
     }
 
-    if (drawer) {
-        drawer.addEventListener("click", (e) => {
-            if (e.target === drawer) {
-                drawer.classList.add("hidden");
+    if (auditDrawer) {
+        auditDrawer.addEventListener("click", (e) => {
+            if (e.target === auditDrawer) {
+                auditDrawer.classList.add("hidden");
             }
         });
     }
@@ -153,8 +239,11 @@ function setupEventListeners() {
     // Escape key closes modals / drawer
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-            if (drawer && !drawer.classList.contains("hidden")) {
-                drawer.classList.add("hidden");
+            if (approvalsDrawer && !approvalsDrawer.classList.contains("hidden")) {
+                approvalsDrawer.classList.add("hidden");
+            }
+            if (auditDrawer && !auditDrawer.classList.contains("hidden")) {
+                auditDrawer.classList.add("hidden");
             }
             if (bsonModal && !bsonModal.classList.contains("hidden")) {
                 bsonModal.classList.add("hidden");
@@ -171,6 +260,7 @@ function setupEventListeners() {
 function setupPresetButtons() {
     document.querySelectorAll(".policy-preset-btn").forEach(btn => {
         btn.addEventListener("click", () => {
+            unlockAudio();
             const val = parseFloat(btn.getAttribute("data-val"));
             if (!isNaN(val)) {
                 setPolicyPreset(val);
@@ -244,67 +334,108 @@ async function fetchLivePolicy() {
 }
 
 // -------------------------------------------------------------
-// Voice Toggle & Visualizer
+// ElevenLabs Audio Player & Sound Visualizer
 // -------------------------------------------------------------
 
 function updateVoiceToggleButton() {
+    const dot = document.getElementById("voice-dot");
+    const statusText = document.getElementById("voice-status-text");
     const btn = document.getElementById("voice-toggle-btn");
-    if (!btn) return;
+    if (!dot || !statusText || !btn) return;
 
     if (voiceEnabled) {
-        btn.innerHTML = `
-            <span class="h-2.5 w-2.5 rounded-full bg-[#059669]"></span>
-            <span>Voice: <strong>ON</strong></span>
-            <div id="audio-visualizer" class="hidden items-center gap-0.5 ml-1">
-                <span class="equalizer-bar"></span>
-                <span class="equalizer-bar"></span>
-                <span class="equalizer-bar"></span>
-                <span class="equalizer-bar"></span>
-                <span class="equalizer-bar"></span>
-            </div>
-        `;
-        btn.className = "h-[42px] px-4 text-[15px] font-bold rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition";
+        dot.className = "h-2 w-2 rounded-full bg-[#059669]";
+        statusText.innerText = "ON";
+        btn.className = "h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition";
     } else {
-        btn.innerHTML = `
-            <span class="h-2.5 w-2.5 rounded-full bg-[#9CA3AF]"></span>
-            <span>Voice: <strong>MUTED</strong></span>
-        `;
-        btn.className = "h-[42px] px-4 text-[15px] font-bold rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#6B7280] flex items-center gap-2 transition";
+        dot.className = "h-2 w-2 rounded-full bg-[#9CA3AF]";
+        statusText.innerText = "MUTED";
+        btn.className = "h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#6B7280] flex items-center gap-2 transition";
     }
 }
 
 function playAudioFromBase64(base64DataUri) {
     if (!base64DataUri) return;
-    if (currentAudio) {
-        currentAudio.pause();
+    
+    try {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+        }
+
+        currentAudio = new Audio(base64DataUri);
+        startAudioVisualizer();
+
+        currentAudio.onended = () => {
+            stopAudioVisualizer();
+        };
+
+        currentAudio.onerror = (err) => {
+            stopAudioVisualizer();
+            console.warn("ElevenLabs audio playback failed or interrupted:", err);
+        };
+
+        const playPromise = currentAudio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                console.warn("Autoplay blocked by browser policy. User gesture required:", e);
+                stopAudioVisualizer();
+            });
+        }
+    } catch (err) {
+        console.error("Audio playback error:", err);
+        stopAudioVisualizer();
     }
-
-    currentAudio = new Audio(base64DataUri);
-    startAudioVisualizer();
-
-    currentAudio.onended = () => {
-        stopAudioVisualizer();
-    };
-
-    currentAudio.onerror = () => {
-        stopAudioVisualizer();
-        console.warn("ElevenLabs audio playback failed or interrupted.");
-    };
-
-    currentAudio.play().catch(e => {
-        console.warn("Autoplay blocked by browser policy:", e);
-        stopAudioVisualizer();
-    });
 }
+
+// Replays audio from the global cache via a safe string ID
+window.replayAudioByKey = function(audioKey) {
+    unlockAudio();
+    const dataUri = window.audioCache[audioKey];
+    if (dataUri) {
+        playAudioFromBase64(dataUri);
+    } else {
+        showToast("Audio not found or expired.");
+    }
+};
 
 function startAudioVisualizer() {
     const vis = document.getElementById("audio-visualizer");
+    const dot = document.getElementById("voice-dot");
     if (vis) vis.classList.replace("hidden", "flex");
+    if (dot && voiceEnabled) {
+        dot.classList.add("animate-ping");
+    }
 }
 
 function stopAudioVisualizer() {
     const vis = document.getElementById("audio-visualizer");
+    const dot = document.getElementById("voice-dot");
     if (vis) vis.classList.replace("flex", "hidden");
+    if (dot) {
+        dot.classList.remove("animate-ping");
+    }
+}
+
+// Fallback voice synthesis if `/api/chat` returns null audio
+async function fetchFallbackTTS(text, audioKeyToStore, callback) {
+    try {
+        const res = await fetch("/api/voice/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text })
+        });
+        const data = await res.json();
+        if (data.success && data.audio_base64) {
+            window.audioCache[audioKeyToStore] = data.audio_base64;
+            if (callback) callback(data.audio_base64);
+            if (voiceEnabled) {
+                playAudioFromBase64(data.audio_base64);
+            }
+        }
+    } catch (e) {
+        console.warn("Fallback TTS unavailable:", e);
+    }
 }
 
 // -------------------------------------------------------------
@@ -330,13 +461,31 @@ async function sendChatMessage(message) {
         showChatLoading(false);
 
         if (response.ok) {
-            // Render Agent Response
-            appendAgentMessage(data.response, data.status, data.request_id, data.audio_base64, message);
+            const hasAudio = !!data.audio_base64;
+            let audioKey = null;
 
-            if (voiceEnabled && data.audio_base64) {
-                playAudioFromBase64(data.audio_base64);
+            if (hasAudio) {
+                audioKey = "audio_" + (++audioCounter);
+                window.audioCache[audioKey] = data.audio_base64;
             }
 
+            // Render Agent Message or Inline HITL Card
+            appendAgentMessage(data.response, data.status, data.request_id, audioKey, message);
+
+            // Play ElevenLabs audio automatically if voice is on
+            if (voiceEnabled) {
+                if (hasAudio) {
+                    playAudioFromBase64(data.audio_base64);
+                } else {
+                    // Attempt fallback TTS if audio was not pre-generated
+                    const fallbackKey = "audio_" + (++audioCounter);
+                    fetchFallbackTTS(data.response, fallbackKey, (b64) => {
+                        updateReplayButtonsWithKey(fallbackKey);
+                    });
+                }
+            }
+
+            fetchPendingRequests();
             fetchAuditLogs();
         } else {
             appendSystemMessage("Error: " + (data.detail || "Failed to process chat message"));
@@ -360,61 +509,61 @@ function appendUserMessage(text) {
         </div>
     `;
     container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+    scrollToBottom(true);
 }
 
-function appendAgentMessage(text, status, requestId, audioB64, userPrompt) {
+function appendAgentMessage(text, status, requestId, audioKey, userPrompt) {
     const container = document.getElementById("chat-messages");
     if (!container) return;
 
     // Check if this requires an Inline HITL Decision Card
     if (status === "PENDING_APPROVAL" && requestId) {
-        renderInlineHitlCard(container, text, requestId, userPrompt, audioB64);
+        renderInlineHitlCard(container, text, requestId, userPrompt, audioKey);
         return;
     }
 
-    // Normal Agent Response Card
+    // Normal Agent Response Card (15px typography, 1.5 line-height)
     const div = document.createElement("div");
     div.className = "agent-msg-card animate-fade-in";
 
     let badgeHtml = "";
     if (status === "AUTO_APPROVED") {
         badgeHtml = `
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]">
-                <svg class="w-3.5 h-3.5 mr-1 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                Auto-Approved (≤ $${cachedPolicyLimit.toFixed(2)} Limit)
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]">
+                <svg class="w-3 h-3 mr-1 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                Auto-Approved (≤ $${cachedPolicyLimit.toFixed(2)})
             </span>
         `;
     } else {
         badgeHtml = `
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#F3F4F6] text-[#4B5563] border border-[#EAEAEA]">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F3F4F6] text-[#4B5563] border border-[#EAEAEA]">
                 Policy Verified
             </span>
         `;
     }
 
-    const audioButtonHtml = audioB64 ? `
-        <button onclick="playAudioFromBase64('${audioB64}')" class="mt-3 inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] text-[#059669] hover:bg-[#E6F7F0] transition">
-            <svg class="w-3.5 h-3.5 mr-1.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+    const audioButtonHtml = audioKey ? `
+        <button onclick="window.replayAudioByKey('${audioKey}')" class="replay-audio-btn inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] text-[#059669] hover:bg-[#E6F7F0] transition">
+            <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
             Replay Voice Response
         </button>
-    ` : '';
+    ` : `<span class="pending-audio-slot"></span>`;
 
     div.innerHTML = `
         <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#F0F0F0]">
             <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-full bg-[#E6F7F0] text-[#059669] flex items-center justify-center font-bold text-xs">
+                <div class="w-6 h-6 rounded-full bg-[#E6F7F0] text-[#059669] flex items-center justify-center font-bold text-[11px]">
                     AG
                 </div>
-                <span class="text-sm font-bold text-[#111827]">AuditGate Concierge</span>
-                <span class="text-xs font-mono text-[#6B7280]">(agent_01)</span>
+                <span class="text-xs font-bold text-[#111827]">AuditGate Concierge</span>
+                <span class="text-[11px] font-mono text-[#6B7280]">(agent_01)</span>
             </div>
             ${badgeHtml}
         </div>
 
-        <p class="text-[18px] leading-[1.6] text-[#111827]">${escapeHtml(text)}</p>
+        <p class="text-[15px] leading-[1.5] text-[#111827]">${escapeHtml(text)}</p>
 
-        <div class="mt-3 pt-2.5 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B7280]">
+        <div class="mt-3 pt-2 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B7280]">
             <div class="flex items-center gap-2">
                 <span>Rule: <strong class="text-[#111827] font-mono">≤ $${cachedPolicyLimit.toFixed(2)}</strong></span>
                 <span>•</span>
@@ -425,7 +574,7 @@ function appendAgentMessage(text, status, requestId, audioB64, userPrompt) {
     `;
 
     container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+    scrollToBottom(true);
 }
 
 // -------------------------------------------------------------
@@ -433,8 +582,8 @@ function appendAgentMessage(text, status, requestId, audioB64, userPrompt) {
 // Rendered right inside the chat stream when > policy limit
 // -------------------------------------------------------------
 
-function renderInlineHitlCard(container, text, requestId, userPrompt, audioB64) {
-    // Extract amount and order id from prompt or text
+function renderInlineHitlCard(container, text, requestId, userPrompt, audioKey) {
+    // Extract amount and order id
     let amount = "250.00";
     const amtMatch = (userPrompt || text).match(/\$\s*(\d+(?:\.\d{1,2})?)/);
     if (amtMatch) {
@@ -454,41 +603,51 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioB64) 
     div.id = cardId;
     div.className = "hitl-inline-card animate-fade-in";
 
+    const audioButtonHtml = audioKey ? `
+        <button onclick="window.replayAudioByKey('${audioKey}')" class="replay-audio-btn inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-[#EAEAEA] text-[#059669] hover:bg-[#E6F7F0] transition">
+            <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+            Replay Voice Response
+        </button>
+    ` : '';
+
     div.innerHTML = `
         <!-- Agent explanation message -->
-        <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-[#F0F0F0]">
+        <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#F0F0F0]">
             <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center font-bold text-xs">
+                <div class="w-6 h-6 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center font-bold text-[11px]">
                     ⏳
                 </div>
-                <span class="text-sm font-bold text-[#111827]">AuditGate Concierge</span>
-                <span class="text-xs font-mono text-[#6B7280]">(agent_01)</span>
+                <span class="text-xs font-bold text-[#111827]">AuditGate Concierge</span>
+                <span class="text-[11px] font-mono text-[#6B7280]">(agent_01)</span>
             </div>
             <div class="flex items-center gap-2">
                 ${isInjection ? `
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
                         ⚠️ Security Guardrail Flagged
                     </span>
                 ` : ''}
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
                     Human Manager Gate Paused
                 </span>
             </div>
         </div>
 
-        <p class="text-[18px] leading-[1.6] text-[#111827] mb-4">${escapeHtml(text)}</p>
+        <p class="text-[15px] leading-[1.5] text-[#111827] mb-3">${escapeHtml(text)}</p>
 
         <!-- Decision Box -->
-        <div class="p-5 rounded-2xl bg-[#FAFAFA] border border-[#EAEAEA]">
-            <div class="text-[12px] font-bold uppercase tracking-wider text-[#6B7280]">
-                Pending Refund Request
+        <div class="p-4 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
+            <div class="flex items-center justify-between">
+                <div class="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
+                    Pending Refund Request
+                </div>
+                <div>${audioButtonHtml}</div>
             </div>
 
-            <div class="text-[40px] font-black text-[#111827] font-mono leading-none my-2">
-                $${amount} <span class="text-base font-semibold text-[#6B7280] font-sans">USD</span>
+            <div class="text-[32px] font-black text-[#111827] font-mono leading-none my-1.5">
+                $${amount} <span class="text-sm font-semibold text-[#6B7280] font-sans">USD</span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[#4B5563] mt-3 pt-3 border-t border-[#EAEAEA]">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[#4B5563] mt-2.5 pt-2.5 border-t border-[#EAEAEA]">
                 <div>
                     <span class="text-[#6B7280]">Order Reference:</span>
                     <strong class="font-mono text-[#111827] ml-1">#${escapeHtml(orderId)}</strong>
@@ -508,10 +667,10 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioB64) 
             </div>
 
             <!-- Action Buttons -->
-            <div id="${cardId}-actions" class="flex items-center gap-3 mt-5">
+            <div id="${cardId}-actions" class="flex items-center gap-2.5 mt-3.5">
                 <button 
                     onclick="approveInlineRequest('${requestId}', '${cardId}', '${amount}', '${orderId}')" 
-                    class="h-[44px] px-6 text-[15px] font-bold rounded-xl bg-[#059669] hover:bg-[#047857] text-white flex items-center gap-2 shadow-sm transition"
+                    class="h-[38px] px-5 text-[14px] font-bold rounded-xl bg-[#059669] hover:bg-[#047857] text-white flex items-center gap-1.5 shadow-sm transition"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                     <span>Approve & Resume</span>
@@ -519,7 +678,7 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioB64) 
 
                 <button 
                     onclick="rejectInlineRequest('${requestId}', '${cardId}', '${amount}', '${orderId}')" 
-                    class="h-[44px] px-6 text-[15px] font-bold rounded-xl bg-white border border-[#FECACA] text-[#DC2626] hover:bg-[#FEE2E2] flex items-center gap-2 transition"
+                    class="h-[38px] px-5 text-[14px] font-bold rounded-xl bg-white border border-[#FECACA] text-[#DC2626] hover:bg-[#FEE2E2] flex items-center gap-1.5 transition"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     <span>Decline</span>
@@ -529,10 +688,11 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioB64) 
     `;
 
     container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+    scrollToBottom(true);
 }
 
 async function approveInlineRequest(requestId, cardId, amount, orderId) {
+    unlockAudio();
     try {
         const res = await fetch(`/api/approve/${requestId}`, {
             method: "POST",
@@ -546,6 +706,12 @@ async function approveInlineRequest(requestId, cardId, amount, orderId) {
             const finalResp = respData.final_response || `Refund of $${amount} for order #${orderId} has been successfully approved by manager.`;
             const audioB64 = respData.audio_base64;
 
+            let audioKey = null;
+            if (audioB64) {
+                audioKey = "audio_" + (++audioCounter);
+                window.audioCache[audioKey] = audioB64;
+            }
+
             // Transition the inline card to confirmed green receipt
             const card = document.getElementById(cardId);
             if (card) {
@@ -555,20 +721,246 @@ async function approveInlineRequest(requestId, cardId, amount, orderId) {
                 const actionsContainer = document.getElementById(`${cardId}-actions`);
                 if (actionsContainer) {
                     actionsContainer.innerHTML = `
-                        <div class="w-full flex items-center justify-between p-3 rounded-xl bg-[#E6F7F0] border border-[#B7EBD5] text-[#047857]">
-                            <div class="flex items-center gap-2 font-bold text-sm">
-                                <svg class="w-5 h-5 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                        <div class="w-full flex items-center justify-between p-2.5 rounded-xl bg-[#E6F7F0] border border-[#B7EBD5] text-[#047857]">
+                            <div class="flex items-center gap-2 font-bold text-xs">
+                                <svg class="w-4 h-4 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                                 <span>Resolved: Manager Approved & Resumed in LangGraph</span>
                             </div>
-                            <span class="font-mono text-xs text-[#059669]">Status: HUMAN_APPROVED</span>
+                            <span class="font-mono text-[11px] text-[#059669]">HUMAN_APPROVED</span>
                         </div>
                     `;
                 }
             }
 
             // Append resumed agent response bubble
-            appendAgentMessage(finalResp, "HUMAN_APPROVED", requestId, audioB64);
+            appendAgentMessage(finalResp, "HUMAN_APPROVED", requestId, audioKey);
             showToast(`Request ${requestId} APPROVED. LangGraph execution resumed.`);
+            fetchPendingRequests();
+            fetchAuditLogs();
+
+            if (voiceEnabled && audioB64) {
+                playAudioFromBase64(audioB64);
+            }
+            scrollToBottom(true);
+        } else {
+            showToast("Approval error: " + (data.detail || "Failed"));
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Network error approving request.");
+    }
+}
+
+async function rejectInlineRequest(requestId, cardId, amount, orderId) {
+    unlockAudio();
+    try {
+        const res = await fetch(`/api/reject/${requestId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ manager_notes: "Declined via Inline Decision Card" })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            const respData = data.data || {};
+            const finalResp = respData.final_response || `Refund request for order #${orderId} was declined by manager.`;
+            const audioB64 = respData.audio_base64;
+
+            let audioKey = null;
+            if (audioB64) {
+                audioKey = "audio_" + (++audioCounter);
+                window.audioCache[audioKey] = audioB64;
+            }
+
+            // Transition the inline card to confirmed red receipt
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.classList.remove("hitl-inline-card");
+                card.classList.add("hitl-inline-card", "resolved-declined");
+
+                const actionsContainer = document.getElementById(`${cardId}-actions`);
+                if (actionsContainer) {
+                    actionsContainer.innerHTML = `
+                        <div class="w-full flex items-center justify-between p-2.5 rounded-xl bg-[#FEE2E2] border border-[#FECACA] text-[#DC2626]">
+                            <div class="flex items-center gap-2 font-bold text-xs">
+                                <svg class="w-4 h-4 text-[#DC2626]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                                <span>Resolved: Manager Declined & Resumed in LangGraph</span>
+                            </div>
+                            <span class="font-mono text-[11px] text-[#DC2626]">HUMAN_REJECTED</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // Append resumed agent response bubble
+            appendAgentMessage(finalResp, "HUMAN_REJECTED", requestId, audioKey);
+            showToast(`Request ${requestId} DECLINED. LangGraph execution resumed.`);
+            fetchPendingRequests();
+            fetchAuditLogs();
+
+            if (voiceEnabled && audioB64) {
+                playAudioFromBase64(audioB64);
+            }
+            scrollToBottom(true);
+        } else {
+            showToast("Rejection error: " + (data.detail || "Failed"));
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Network error rejecting request.");
+    }
+}
+
+function updateReplayButtonsWithKey(audioKey) {
+    document.querySelectorAll(".pending-audio-slot").forEach(slot => {
+        slot.outerHTML = `
+            <button onclick="window.replayAudioByKey('${audioKey}')" class="replay-audio-btn inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#FAFAFA] border border-[#EAEAEA] text-[#059669] hover:bg-[#E6F7F0] transition">
+                <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                Replay Voice Response
+            </button>
+        `;
+    });
+}
+
+function appendSystemMessage(text) {
+    const container = document.getElementById("chat-messages");
+    if (!container) return;
+    const div = document.createElement("div");
+    div.className = "flex justify-center my-2 animate-fade-in";
+    div.innerHTML = `
+        <div class="bg-[#F3F4F6] border border-[#EAEAEA] rounded-full px-3.5 py-1 text-xs text-[#6B7280] font-medium">
+            ${escapeHtml(text)}
+        </div>
+    `;
+    container.appendChild(div);
+    scrollToBottom(true);
+}
+
+function showChatLoading(show) {
+    const loader = document.getElementById("chat-loader");
+    if (loader) {
+        loader.style.display = show ? "flex" : "none";
+        if (show) {
+            scrollToBottom(true);
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// Dedicated Approvals Drawer (refund_requests)
+// -------------------------------------------------------------
+
+async function fetchPendingRequests() {
+    try {
+        const res = await fetch("/api/refund-requests?status=PENDING");
+        const data = await res.json();
+        if (data.success) {
+            cachedPendingRequests = data.requests || [];
+            renderPendingApprovals(cachedPendingRequests);
+        }
+    } catch (e) {
+        console.error("Error fetching pending requests:", e);
+    }
+}
+
+function renderPendingApprovals(rawRequests) {
+    const countPill = document.getElementById("pending-count-pill");
+    const listContainer = document.getElementById("approvals-drawer-list");
+
+    // Deduplicate by request_id
+    const seen = new Set();
+    const requests = [];
+    for (const r of rawRequests) {
+        if (!seen.has(r.request_id)) {
+            seen.add(r.request_id);
+            requests.push(r);
+        }
+    }
+
+    if (countPill) countPill.innerText = requests.length;
+    if (!listContainer) return;
+
+    if (requests.length === 0) {
+        listContainer.innerHTML = `
+            <div class="py-12 text-center">
+                <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-[#E6F7F0] text-[#059669] flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h3 class="text-sm font-bold text-[#111827]">Governance Queue Clear</h3>
+                <p class="text-xs text-[#6B7280] mt-1 max-w-xs mx-auto">No pending requests require human intervention at this time.</p>
+            </div>
+        `;
+        return;
+    }
+
+    listContainer.innerHTML = requests.map(req => {
+        const isInjection = /override|ignore|jailbreak|bypass|hack/i.test(req.reason || "");
+        const dateStr = req.created_at ? new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
+
+        return `
+            <div class="p-4 rounded-xl border border-[#EAEAEA] bg-white shadow-2xs hover:border-[#D1D5DB] transition">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono text-xs font-bold text-[#D97706] bg-[#FFFBEB] px-2 py-0.5 rounded border border-[#FDE68A]">
+                            ${escapeHtml(req.request_id)}
+                        </span>
+                        ${req.order_id ? `
+                            <span class="font-mono text-xs font-semibold text-[#111827] bg-[#F3F4F6] px-1.5 py-0.5 rounded">
+                                #${escapeHtml(req.order_id)}
+                            </span>
+                        ` : ''}
+                        ${isInjection ? `
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FEE2E2] text-[#DC2626]">
+                                ⚠️ Guardrail Flagged
+                            </span>
+                        ` : ''}
+                    </div>
+                    <span class="text-base font-extrabold text-[#111827] font-mono">$${parseFloat(req.amount || 0).toFixed(2)}</span>
+                </div>
+
+                <p class="text-xs text-[#4B5563] mb-3 line-clamp-2" title="${escapeHtml(req.reason)}">
+                    ${escapeHtml(req.reason || "Customer refund request")}
+                </p>
+
+                <div class="flex items-center justify-between pt-2 border-t border-[#F0F0F0] text-[11px] text-[#6B7280]">
+                    <span>${dateStr} • Limit: $${parseFloat(req.policy_limit_applied || 50).toFixed(2)}</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="approveFromDrawer('${req.request_id}')" class="px-3 py-1 text-xs font-bold rounded-lg bg-[#059669] hover:bg-[#047857] text-white transition">
+                            Approve
+                        </button>
+                        <button onclick="rejectFromDrawer('${req.request_id}')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-[#FECACA] text-[#DC2626] hover:bg-[#FEE2E2] transition">
+                            Decline
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+async function approveFromDrawer(requestId) {
+    unlockAudio();
+    try {
+        const res = await fetch(`/api/approve/${requestId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ manager_notes: "Approved via Governance Approvals Drawer" })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            const respData = data.data || {};
+            const finalResp = respData.final_response || `Refund request ${requestId} approved by manager.`;
+            const audioB64 = respData.audio_base64;
+
+            let audioKey = null;
+            if (audioB64) {
+                audioKey = "audio_" + (++audioCounter);
+                window.audioCache[audioKey] = audioB64;
+            }
+
+            appendAgentMessage(finalResp, "HUMAN_APPROVED", requestId, audioKey);
+            showToast(`Request ${requestId} APPROVED. LangGraph resumed.`);
+            fetchPendingRequests();
             fetchAuditLogs();
 
             if (voiceEnabled && audioB64) {
@@ -583,43 +975,29 @@ async function approveInlineRequest(requestId, cardId, amount, orderId) {
     }
 }
 
-async function rejectInlineRequest(requestId, cardId, amount, orderId) {
+async function rejectFromDrawer(requestId) {
+    unlockAudio();
     try {
         const res = await fetch(`/api/reject/${requestId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ manager_notes: "Declined via Inline Decision Card" })
+            body: JSON.stringify({ manager_notes: "Declined via Governance Approvals Drawer" })
         });
-
         const data = await res.json();
         if (res.ok) {
             const respData = data.data || {};
-            const finalResp = respData.final_response || `Refund request for order #${orderId} was declined by manager.`;
+            const finalResp = respData.final_response || `Refund request ${requestId} declined by manager.`;
             const audioB64 = respData.audio_base64;
 
-            // Transition the inline card to confirmed red receipt
-            const card = document.getElementById(cardId);
-            if (card) {
-                card.classList.remove("hitl-inline-card");
-                card.classList.add("hitl-inline-card", "resolved-declined");
-
-                const actionsContainer = document.getElementById(`${cardId}-actions`);
-                if (actionsContainer) {
-                    actionsContainer.innerHTML = `
-                        <div class="w-full flex items-center justify-between p-3 rounded-xl bg-[#FEE2E2] border border-[#FECACA] text-[#DC2626]">
-                            <div class="flex items-center gap-2 font-bold text-sm">
-                                <svg class="w-5 h-5 text-[#DC2626]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                                <span>Resolved: Manager Declined & Resumed in LangGraph</span>
-                            </div>
-                            <span class="font-mono text-xs text-[#DC2626]">Status: HUMAN_REJECTED</span>
-                        </div>
-                    `;
-                }
+            let audioKey = null;
+            if (audioB64) {
+                audioKey = "audio_" + (++audioCounter);
+                window.audioCache[audioKey] = audioB64;
             }
 
-            // Append resumed agent response bubble
-            appendAgentMessage(finalResp, "HUMAN_REJECTED", requestId, audioB64);
-            showToast(`Request ${requestId} DECLINED. LangGraph execution resumed.`);
+            appendAgentMessage(finalResp, "HUMAN_REJECTED", requestId, audioKey);
+            showToast(`Request ${requestId} DECLINED. LangGraph resumed.`);
+            fetchPendingRequests();
             fetchAuditLogs();
 
             if (voiceEnabled && audioB64) {
@@ -634,92 +1012,30 @@ async function rejectInlineRequest(requestId, cardId, amount, orderId) {
     }
 }
 
-function appendSystemMessage(text) {
-    const container = document.getElementById("chat-messages");
-    if (!container) return;
-    const div = document.createElement("div");
-    div.className = "flex justify-center my-2 animate-fade-in";
-    div.innerHTML = `
-        <div class="bg-[#F3F4F6] border border-[#EAEAEA] rounded-full px-4 py-1 text-xs text-[#6B7280] font-medium">
-            ${escapeHtml(text)}
-        </div>
-    `;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-}
-
-function showChatLoading(show) {
-    const loader = document.getElementById("chat-loader");
-    if (loader) {
-        loader.style.display = show ? "flex" : "none";
-    }
-}
-
-// -------------------------------------------------------------
-// Session Reset & Queue Clearing
-// -------------------------------------------------------------
-
-async function resetDemoSession() {
+async function clearAllPendingRequests() {
     try {
         const res = await fetch("/api/refund-requests?status=PENDING");
         const data = await res.json();
         const pending = data.requests || [];
+        if (pending.length === 0) {
+            showToast("No pending requests to clear.");
+            return;
+        }
+
         for (const req of pending) {
             await fetch(`/api/reject/${req.request_id}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ manager_notes: "Cleared on Session Reset" })
+                body: JSON.stringify({ manager_notes: "Dismissed via Drawer Queue Clear" })
             });
         }
+
+        showToast(`Cleared ${pending.length} pending request(s).`);
+        fetchPendingRequests();
+        fetchAuditLogs();
     } catch (e) {
-        console.warn("Queue reset warning:", e);
+        console.error("Error clearing pending queue:", e);
     }
-
-    currentThreadId = "thread_ORD_" + Math.random().toString(36).substring(2, 8).toUpperCase();
-    updateThreadDisplay();
-
-    const messages = document.getElementById("chat-messages");
-    if (messages) {
-        messages.innerHTML = `
-            <div class="agent-msg-card animate-fade-in">
-                <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-[#F0F0F0]">
-                    <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 rounded-full bg-[#E6F7F0] text-[#059669] flex items-center justify-center font-bold text-xs">
-                            AG
-                        </div>
-                        <span class="text-sm font-bold text-[#111827]">AuditGate Concierge</span>
-                        <span class="text-xs font-mono text-[#6B7280]">(agent_01)</span>
-                    </div>
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]">
-                        <span class="h-2 w-2 rounded-full bg-[#059669] mr-1.5 animate-pulse"></span>
-                        Live Policy Engine Active
-                    </span>
-                </div>
-
-                <p class="text-[18px] leading-[1.6] text-[#111827]">
-                    Welcome to <strong>AuditGate</strong>. I am your autonomous customer concierge governed by real-time MongoDB Atlas policy controls.
-                </p>
-
-                <p class="text-[16px] text-[#4B5563] mt-2 leading-[1.6]">
-                    Requests within the active threshold (<strong class="text-[#059669] font-mono" id="welcome-limit-ref">$${cachedPolicyLimit.toFixed(2)}</strong>) are auto-approved and recorded directly to the immutable audit log. Any requests exceeding this rule pause execution in MongoDB checkpoints for human manager approval.
-                </p>
-
-                <div class="mt-4 p-3 bg-[#FAFAFA] border border-[#EAEAEA] rounded-xl flex items-center justify-between text-xs text-[#6B7280]">
-                    <div class="flex items-center gap-1.5">
-                        <span>Active Thread:</span>
-                        <span id="active-thread-id" class="font-mono font-bold text-[#111827]">${currentThreadId}</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span>Policy Store: <strong class="text-[#111827]">MongoDB Atlas</strong></span>
-                        <span>Audit Guard: <strong class="text-[#059669]">$jsonSchema</strong></span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    showToast("Session reset. Fresh thread initialized.");
-    fetchAuditLogs();
 }
 
 // -------------------------------------------------------------
@@ -756,7 +1072,7 @@ function renderDrawerAuditLogs(logs) {
         let eventName = "Refund Review";
 
         if (log.decision === "AUTO_APPROVED") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E6F7F0] text-[#047857]">AUTO-APPROVED</span>`;
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E6F7F0] text-[#047857]">AUTO_APPROVED</span>`;
             eventName = "Autonomous Execution";
         } else if (log.decision === "PENDING_APPROVAL") {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF3C7] text-[#D97706]">PENDING_APPROVAL</span>`;
@@ -838,7 +1154,40 @@ async function runSchemaValidationTest() {
 }
 
 // -------------------------------------------------------------
-// Utilities & Toast System (Large 16px font)
+// Session Reset & Queue Clearing
+// -------------------------------------------------------------
+
+async function resetDemoSession() {
+    try {
+        const res = await fetch("/api/refund-requests?status=PENDING");
+        const data = await res.json();
+        const pending = data.requests || [];
+        for (const req of pending) {
+            await fetch(`/api/reject/${req.request_id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ manager_notes: "Cleared on Session Reset" })
+            });
+        }
+    } catch (e) {
+        console.warn("Queue reset warning:", e);
+    }
+
+    currentThreadId = "thread_ORD_" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    updateThreadDisplay();
+
+    const messages = document.getElementById("chat-messages");
+    if (messages) {
+        messages.innerHTML = "";
+    }
+
+    showToast("Session reset. Fresh thread initialized.");
+    fetchPendingRequests();
+    fetchAuditLogs();
+}
+
+// -------------------------------------------------------------
+// Utilities & Toast System
 // -------------------------------------------------------------
 
 function escapeHtml(text) {
@@ -868,6 +1217,6 @@ function showToast(msg, type = "emerald") {
         setTimeout(() => {
             toast.classList.remove("translate-y-0", "opacity-100");
             toast.classList.add("translate-y-20", "opacity-0");
-        }, 4500);
+        }, 4000);
     }
 }

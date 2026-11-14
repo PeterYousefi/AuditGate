@@ -28,6 +28,7 @@ def execute_auto_refund_tool(
     thread_id: str,
     amount: float,
     reason: str,
+    order_id: Optional[str] = None,
     agent_id: str = "agent_01"
 ) -> Dict[str, Any]:
     """
@@ -38,6 +39,10 @@ def execute_auto_refund_tool(
     if amount > live_limit:
         raise ValueError(f"Requested amount ${amount} exceeds live limit ${live_limit}")
 
+    metadata = {"execution_method": "autonomous_tool", "currency": "USD"}
+    if order_id:
+        metadata["order_id"] = order_id
+
     # Physical transaction simulation / audit trail write
     audit_entry = record_audit_log(
         thread_id=thread_id,
@@ -46,12 +51,13 @@ def execute_auto_refund_tool(
         policy_limit_applied=live_limit,
         decision="AUTO_APPROVED",
         reason=f"Auto-approved by policy: amount (${amount:.2f}) <= live limit (${live_limit:.2f}). Justification: {reason}",
-        metadata={"execution_method": "autonomous_tool", "currency": "USD"}
+        metadata=metadata
     )
 
     return {
         "success": True,
         "amount": amount,
+        "order_id": order_id,
         "policy_limit": live_limit,
         "audit_id": audit_entry["_id"],
         "message": f"Successfully processed automated refund of ${amount:.2f}."
@@ -63,6 +69,7 @@ def create_escalation_request_tool(
     customer_id: str,
     amount: float,
     reason: str,
+    order_id: Optional[str] = None,
     agent_id: str = "agent_01"
 ) -> Dict[str, Any]:
     """
@@ -79,6 +86,7 @@ def create_escalation_request_tool(
         "request_id": request_id,
         "thread_id": thread_id,
         "customer_id": customer_id,
+        "order_id": order_id,
         "amount": float(amount),
         "currency": "USD",
         "policy_limit_applied": live_limit,
@@ -93,6 +101,10 @@ def create_escalation_request_tool(
     col.insert_one(doc)
     doc["_id"] = str(doc.get("_id", ""))
 
+    metadata = {"request_id": request_id, "customer_id": customer_id}
+    if order_id:
+        metadata["order_id"] = order_id
+
     # Audit the escalation
     record_audit_log(
         thread_id=thread_id,
@@ -101,7 +113,7 @@ def create_escalation_request_tool(
         policy_limit_applied=live_limit,
         decision="PENDING_APPROVAL",
         reason=f"Escalated to human-in-the-loop gate: amount (${amount:.2f}) > live limit (${live_limit:.2f}). Request ID: {request_id}",
-        metadata={"request_id": request_id, "customer_id": customer_id}
+        metadata=metadata
     )
 
     logger.info(f"Created pending refund request '{request_id}' in MongoDB Atlas. Awaiting human manager.")

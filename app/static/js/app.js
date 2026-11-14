@@ -612,6 +612,11 @@ function renderPendingRequests(rawRequests) {
                         <span class="font-mono text-xs font-bold text-[#D97706] bg-[#FFFBEB] px-2 py-0.5 rounded border border-[#FDE68A]">
                             ${escapeHtml(req.request_id)}
                         </span>
+                        ${req.order_id ? `
+                            <span class="font-mono text-[10px] font-semibold text-[#1A1A1A] bg-[#F3F4F6] px-1.5 py-0.5 rounded border border-[#E5E7EB]">
+                                #${escapeHtml(req.order_id)}
+                            </span>
+                        ` : ''}
                         ${isInjection ? `
                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
                                 ⚠️ Prompt Injection
@@ -664,11 +669,17 @@ async function approveRequest(requestId) {
         });
         const data = await res.json();
         if (res.ok) {
+            const respData = data.data || {};
+            const finalResp = respData.final_response || `Refund request ${requestId} has been approved by manager.`;
+            const audioB64 = respData.audio_base64;
+
+            appendAgentMessage(finalResp, "HUMAN_APPROVED", requestId, audioB64);
             showToast(`Request ${requestId} APPROVED. LangGraph resumed.`);
             fetchPendingRequests();
             fetchAuditLogs();
-            if (voiceEnabled && data.data && data.data.audio_base64) {
-                playAudioFromBase64(data.data.audio_base64);
+
+            if (voiceEnabled && audioB64) {
+                playAudioFromBase64(audioB64);
             }
         } else {
             alert("Approval error: " + data.detail);
@@ -687,11 +698,17 @@ async function rejectRequest(requestId) {
         });
         const data = await res.json();
         if (res.ok) {
+            const respData = data.data || {};
+            const finalResp = respData.final_response || `Refund request ${requestId} has been declined by manager.`;
+            const audioB64 = respData.audio_base64;
+
+            appendAgentMessage(finalResp, "HUMAN_REJECTED", requestId, audioB64);
             showToast(`Request ${requestId} DECLINED. LangGraph resumed.`);
             fetchPendingRequests();
             fetchAuditLogs();
-            if (voiceEnabled && data.data && data.data.audio_base64) {
-                playAudioFromBase64(data.data.audio_base64);
+
+            if (voiceEnabled && audioB64) {
+                playAudioFromBase64(audioB64);
             }
         } else {
             alert("Rejection error: " + data.detail);

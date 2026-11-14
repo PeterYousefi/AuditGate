@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.agent.graph import build_auditgate_graph
 from app.agent.hitl_manager import get_graph
 from app.database.policy_service import get_live_policy
+from app.voice.elevenlabs_client import get_speech_audio_base64
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +69,13 @@ async def process_chat_message(req: ChatRequest):
             interrupt_payload = result["__interrupt__"][0].value if result.get("__interrupt__") else {}
             req_id = interrupt_payload.get("request_id")
             status_val = "PENDING_APPROVAL"
-            response_text = (
+            response_text = interrupt_payload.get("response_text") or (
                 f"Your refund request for ${interrupt_payload.get('amount', 0):.2f} exceeds our automated support limit of ${limit:.2f}. "
                 f"Your request ({req_id}) has been paused in LangGraph and submitted to human management for review."
             )
-            audio_b64 = result.get("audio_base64")
+            audio_b64 = interrupt_payload.get("audio_base64")
+            if not audio_b64:
+                audio_b64 = get_speech_audio_base64(response_text)
         else:
             status_val = result.get("status", "COMPLETED")
             response_text = result.get("final_response") or "Thank you for reaching out to AuditGate support."

@@ -12,6 +12,14 @@
 
 ---
 
+### 🎥 **Featured Videos**
+- **Presentation Video:** **[Watch the Presentation Video on YouTube](https://www.youtube.com/watch?v=rR1TLi4nz-I)**  
+  `https://www.youtube.com/watch?v=rR1TLi4nz-I`
+- **Live Demo Video:** **[Watch the Demo Video on YouTube](https://www.youtube.com/watch?v=9Eub8QxFS7E)**  
+  `https://www.youtube.com/watch?v=9Eub8QxFS7E`
+
+---
+
 ## 📸 Product Visuals
 
 ### 1. Minimal Centered AI Stage & Proactive Voice Onboarding

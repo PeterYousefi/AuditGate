@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from app.database import get_collection
 from app.database.policy_service import get_live_policy
 from app.database.audit_service import record_audit_log
+from app.database.orders_service import update_order_status
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def execute_auto_refund_tool(
     metadata = {"execution_method": "autonomous_tool", "currency": "USD"}
     if order_id:
         metadata["order_id"] = order_id
+        update_order_status(order_id, "REFUNDED")
 
     # Physical transaction simulation / audit trail write
     audit_entry = record_audit_log(
@@ -70,6 +72,7 @@ def create_escalation_request_tool(
     amount: float,
     reason: str,
     order_id: Optional[str] = None,
+    email: Optional[str] = None,
     agent_id: str = "agent_01",
     is_injection: bool = False
 ) -> Dict[str, Any]:
@@ -88,6 +91,7 @@ def create_escalation_request_tool(
         "thread_id": thread_id,
         "customer_id": customer_id,
         "order_id": order_id,
+        "email": email,
         "amount": float(amount),
         "currency": "USD",
         "policy_limit_applied": live_limit,
@@ -106,6 +110,8 @@ def create_escalation_request_tool(
     metadata = {"request_id": request_id, "customer_id": customer_id}
     if order_id:
         metadata["order_id"] = order_id
+    if email:
+        metadata["email"] = email
     if is_injection:
         metadata["guardrail_engaged"] = "prompt_injection"
 

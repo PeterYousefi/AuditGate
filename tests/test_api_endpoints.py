@@ -33,12 +33,12 @@ def test_test_schema_enforcement_endpoint():
 
 
 def test_chat_auto_refund_endpoint():
-    """Tests /api/chat with an amount below the policy threshold."""
+    """Tests /api/chat with a verified order and amount below the policy threshold."""
     response = client.post(
         "/api/chat",
-        json={"message": "Please refund $10 for a defective cable.", "customer_id": "cust_test_api"}
+        json={"message": "Please refund $28.00 for order #ORD-1042. Email: alex@example.com.", "customer_id": "cust_test_api"}
     )
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "AUTO_APPROVED"
-    assert "$10.00" in data["response"]
+    assert "$28.00" in data["response"]

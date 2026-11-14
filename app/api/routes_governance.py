@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.database import get_collection
 from app.database.policy_service import get_live_policy, update_policy_limit
+from app.database.orders_service import list_all_demo_orders
 from app.agent.hitl_manager import resume_interrupted_thread
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,19 @@ async def get_policy_endpoint(agent_id: str = "agent_01"):
         return {"success": True, "policy": policy}
     except Exception as e:
         logger.error(f"Failed to fetch live policy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/orders")
+async def list_orders_endpoint():
+    """
+    Returns all demo orders from MongoDB Atlas 'orders' collection for live UI cheat-sheet.
+    """
+    try:
+        orders = list_all_demo_orders()
+        return {"success": True, "orders": orders}
+    except Exception as e:
+        logger.error(f"Failed to list demo orders: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

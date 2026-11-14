@@ -83,7 +83,7 @@ function setupEventListeners() {
     const resetBtn = document.getElementById("reset-session-btn");
     const testSchemaBtn = document.getElementById("test-schema-btn");
     
-    // Drawers
+    // Drawers & Modals
     const approvalsDrawerOpenBtn = document.getElementById("approvals-drawer-open-btn");
     const approvalsDrawerCloseBtn = document.getElementById("close-approvals-drawer-btn");
     const approvalsDrawer = document.getElementById("approvals-drawer");
@@ -94,6 +94,12 @@ function setupEventListeners() {
     const auditDrawerCloseBtn = document.getElementById("close-audit-drawer-btn");
     const auditDrawer = document.getElementById("audit-drawer");
     const refreshAuditBtn = document.getElementById("refresh-audit-logs-btn");
+
+    // Orders Modal
+    const ordersModalOpenBtn = document.getElementById("orders-modal-open-btn");
+    const ordersModalCloseBtn = document.getElementById("close-orders-modal-btn");
+    const ordersModal = document.getElementById("orders-modal");
+    const refreshOrdersModalBtn = document.getElementById("refresh-orders-modal-btn");
 
     // BSON Modal
     const bsonModal = document.getElementById("bson-modal");
@@ -213,6 +219,35 @@ function setupEventListeners() {
         });
     }
 
+    // Demo Orders Modal Open / Close
+    if (ordersModalOpenBtn && ordersModal) {
+        ordersModalOpenBtn.addEventListener("click", () => {
+            ordersModal.classList.remove("hidden");
+            fetchAndRenderDemoOrders();
+        });
+    }
+
+    if (ordersModalCloseBtn && ordersModal) {
+        ordersModalCloseBtn.addEventListener("click", () => {
+            ordersModal.classList.add("hidden");
+        });
+    }
+
+    if (ordersModal) {
+        ordersModal.addEventListener("click", (e) => {
+            if (e.target === ordersModal) {
+                ordersModal.classList.add("hidden");
+            }
+        });
+    }
+
+    if (refreshOrdersModalBtn) {
+        refreshOrdersModalBtn.addEventListener("click", () => {
+            fetchAndRenderDemoOrders();
+            showToast("Demo orders refreshed from MongoDB Atlas.");
+        });
+    }
+
     // BSON Modal
     if (bsonCloseBtn && bsonModal) {
         bsonCloseBtn.addEventListener("click", () => {
@@ -244,6 +279,9 @@ function setupEventListeners() {
             }
             if (auditDrawer && !auditDrawer.classList.contains("hidden")) {
                 auditDrawer.classList.add("hidden");
+            }
+            if (ordersModal && !ordersModal.classList.contains("hidden")) {
+                ordersModal.classList.add("hidden");
             }
             if (bsonModal && !bsonModal.classList.contains("hidden")) {
                 bsonModal.classList.add("hidden");
@@ -532,6 +570,37 @@ function appendAgentMessage(text, status, requestId, audioKey, userPrompt) {
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]">
                 <svg class="w-3 h-3 mr-1 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                 Refund Processed
+            </span>
+        `;
+    } else if (status === "SECURITY_BLOCK" || status === "PROMPT_INJECTION_DETECTED") {
+        badgeHtml = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
+                <svg class="w-3 h-3 mr-1 text-[#DC2626]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Security Guardrail Engaged
+            </span>
+        `;
+    } else if (status === "VERIFICATION_FAILED") {
+        badgeHtml = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
+                Verification Failed
+            </span>
+        `;
+    } else if (status === "REJECTED_DUPLICATE") {
+        badgeHtml = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
+                Duplicate Refund
+            </span>
+        `;
+    } else if (status === "REJECTED_AMOUNT_MISMATCH") {
+        badgeHtml = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
+                Amount Exceeded
+            </span>
+        `;
+    } else if (status === "AWAITING_INFO") {
+        badgeHtml = `
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]">
+                Details Requested
             </span>
         `;
     } else {
@@ -1065,7 +1134,7 @@ function renderDrawerAuditLogs(logs) {
         if (log.decision === "AUTO_APPROVED") {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E6F7F0] text-[#047857]">AUTO_APPROVED</span>`;
             eventName = "Autonomous Execution";
-        } else if (log.decision === "PENDING_APPROVAL") {
+        } else if (log.decision === "PENDING_APPROVAL" || log.decision === "ESCALATED_TO_HUMAN") {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF3C7] text-[#D97706]">PENDING_APPROVAL</span>`;
             eventName = "HITL Gate Paused";
         } else if (log.decision === "HUMAN_APPROVED") {
@@ -1074,6 +1143,18 @@ function renderDrawerAuditLogs(logs) {
         } else if (log.decision === "HUMAN_REJECTED") {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEE2E2] text-[#DC2626]">HUMAN_REJECTED</span>`;
             eventName = "Manager Declined";
+        } else if (log.decision === "SECURITY_BLOCK") {
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEE2E2] text-[#DC2626]">SECURITY_BLOCK</span>`;
+            eventName = "Adversarial Block";
+        } else if (log.decision === "VERIFICATION_FAILED") {
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF3C7] text-[#D97706]">VERIFY_FAILED</span>`;
+            eventName = "Order/Email Mismatch";
+        } else if (log.decision === "REJECTED_DUPLICATE") {
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEE2E2] text-[#DC2626]">ALREADY_REFUNDED</span>`;
+            eventName = "Duplicate Rejected";
+        } else if (log.decision === "REJECTED_AMOUNT_MISMATCH") {
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEE2E2] text-[#DC2626]">AMOUNT_EXCEEDED</span>`;
+            eventName = "Exceeds Order Total";
         } else if (log.decision === "BLOCKED_BY_SCHEMA") {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF5FF] text-[#7E22CE]">BLOCKED_SCHEMA</span>`;
             eventName = "$jsonSchema Tamper Block";
@@ -1175,6 +1256,97 @@ async function resetDemoSession() {
     showToast("Session reset. Fresh thread initialized.");
     fetchPendingRequests();
     fetchAuditLogs();
+}
+
+// -------------------------------------------------------------
+// Live Demo Orders Cheat-Sheet Modal (MongoDB Atlas 'orders')
+// -------------------------------------------------------------
+
+async function fetchAndRenderDemoOrders() {
+    const listElem = document.getElementById("demo-orders-list");
+    if (!listElem) return;
+
+    listElem.innerHTML = `<div class="py-6 text-center text-xs text-[#6B7280]">Loading live orders from MongoDB Atlas...</div>`;
+
+    try {
+        const resp = await fetch("/api/orders");
+        const data = await resp.json();
+        const orders = data.orders || [];
+
+        if (orders.length === 0) {
+            listElem.innerHTML = `<div class="py-6 text-center text-xs text-[#6B7280]">No orders found in MongoDB Atlas.</div>`;
+            return;
+        }
+
+        const descriptions = {
+            "ORD-1042": {
+                note: "Standard order (≤ $50 policy limit). Auto-approves immediately.",
+                prompt: "I want to return order #ORD-1042 for a $28.00 refund (alex@example.com)."
+            },
+            "ORD-1089": {
+                note: "High-value order (> $50 limit). Pauses at HITL gate for Manager review.",
+                prompt: "Please refund $250.00 for order #ORD-1089 blanket. Email: alex@example.com."
+            },
+            "ORD-2055": {
+                note: "Sarah's order ($140.00). Use to test email mismatch when using alex@example.com.",
+                prompt: "I want to return order #ORD-2055 for $140.00. Email: sarah@example.com."
+            },
+            "ORD-3010": {
+                note: "Already refunded ($310.00). Tests duplicate refund rejection guardrail.",
+                prompt: "I'd like a refund for order #ORD-3010 (alex@example.com)."
+            }
+        };
+
+        listElem.innerHTML = orders.map(o => {
+            const isRefunded = o.status === "ALREADY_REFUNDED";
+            const badgeClass = isRefunded 
+                ? "bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]" 
+                : "bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]";
+            const statusLabel = isRefunded ? "ALREADY_REFUNDED" : "DELIVERED";
+            const desc = descriptions[o.order_id] || {
+                note: `Order ${o.order_id}`,
+                prompt: `I'd like a refund for order #${o.order_id} (${o.email || 'alex@example.com'}).`
+            };
+
+            return `
+                <div class="p-3.5 rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] hover:border-[#D1D5DB] transition flex items-center justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs font-mono font-bold text-[#111827]">#${escapeHtml(o.order_id)}</span>
+                            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${badgeClass}">${statusLabel}</span>
+                            <span class="text-xs font-mono font-bold text-[#111827] ml-auto">$${parseFloat(o.amount || 0).toFixed(2)} USD</span>
+                        </div>
+                        <div class="text-xs font-semibold text-[#1F2937] truncate">${escapeHtml(o.item || "Item")}</div>
+                        <div class="text-[11px] text-[#6B7280] font-mono mt-0.5">Customer: <span class="text-[#059669] font-semibold">${escapeHtml(o.email || "n/a")}</span></div>
+                        <p class="text-[11.5px] text-[#6B7280] mt-1">${escapeHtml(desc.note)}</p>
+                    </div>
+                    <button 
+                        type="button"
+                        onclick="fillDemoOrderPrompt('${escapeHtml(desc.prompt)}')"
+                        class="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg bg-white border border-[#EAEAEA] hover:bg-[#E6F7F0] hover:text-[#047857] hover:border-[#B7EBD5] text-[#111827] transition shadow-2xs"
+                    >
+                        Fill Inquiry
+                    </button>
+                </div>
+            `;
+        }).join("");
+    } catch (e) {
+        console.error("Error fetching demo orders:", e);
+        listElem.innerHTML = `<div class="py-6 text-center text-xs text-red-500">Failed to load orders: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function fillDemoOrderPrompt(promptText) {
+    const chatInput = document.getElementById("chat-input");
+    const modal = document.getElementById("orders-modal");
+    if (chatInput) {
+        chatInput.value = promptText;
+        chatInput.focus();
+    }
+    if (modal) {
+        modal.classList.add("hidden");
+    }
+    showToast("Order loaded into chat bar. Press Enter to submit!");
 }
 
 // -------------------------------------------------------------

@@ -8,6 +8,7 @@ from langgraph.types import Command
 from pymongo.collection import Collection
 
 from app.database import get_collection
+from app.database.orders_service import update_order_status
 from app.agent.graph import build_auditgate_graph
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ def resume_interrupted_thread(
             }
         }
     )
+
+    if approved and req_doc.get("order_id"):
+        update_order_status(req_doc["order_id"], "REFUNDED")
 
     # Idempotency lock for thread resumption
     resume_key = f"{request_id}:{status_str}"

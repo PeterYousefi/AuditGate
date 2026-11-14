@@ -38,13 +38,15 @@ def test_hitl_workflow_and_checkpoint_resumption():
     thread_id = f"test_thread_{uuid.uuid4().hex[:6]}"
     config = {"configurable": {"thread_id": thread_id}}
 
-    # Invoke with $180 refund (exceeds $50 limit)
+    # Invoke with $250 refund on verified order #ORD-1089 (exceeds $50 limit)
     state_input = {
         "thread_id": thread_id,
         "customer_id": "test_cust_hitl",
-        "user_message": "Please refund $180 for defective product.",
+        "user_message": "Please refund $250.00 for order #ORD-1089. Email: alex@example.com.",
         "intent": "",
         "requested_amount": None,
+        "order_id": None,
+        "email": None,
         "currency": "USD",
         "reason": None,
         "policy_limit_applied": None,

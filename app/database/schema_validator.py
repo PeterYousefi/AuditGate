@@ -49,7 +49,12 @@ AUDIT_LOG_SCHEMA: Dict[str, Any] = {
                     "PENDING_APPROVAL",
                     "HUMAN_APPROVED",
                     "HUMAN_REJECTED",
-                    "BLOCKED_BY_SCHEMA"
+                    "BLOCKED_BY_SCHEMA",
+                    "SECURITY_BLOCK",
+                    "VERIFICATION_FAILED",
+                    "REJECTED_DUPLICATE",
+                    "REJECTED_AMOUNT_MISMATCH",
+                    "ESCALATED_TO_HUMAN"
                 ],
                 "description": "Strictly audited governance verdict"
             },

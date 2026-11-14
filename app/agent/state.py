@@ -12,6 +12,7 @@ class AgentState(TypedDict):
     intent: str  # "REFUND" or "GENERAL"
     requested_amount: Optional[float]
     order_id: Optional[str]
+    email: Optional[str]
     is_prompt_injection: Optional[bool]
     currency: str
     reason: Optional[str]

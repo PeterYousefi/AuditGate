@@ -1,10 +1,11 @@
-// AuditGate - Modern Shopify Polaris Storefront & Merchant Governance Controller
-// Zero Dark Mode - Pure Light E-Commerce Aesthetics
+// AuditGate — Shopify Editions & Sidekick Flagship Craft Controller
+// Full-Viewport 100vh Split Canvas • Live MongoDB Atlas HITL Governance
 
 let currentThreadId = "thread_ORD_" + Math.random().toString(36).substring(2, 8).toUpperCase();
 let voiceEnabled = true;
 let currentAudio = null;
 let cachedAuditLogs = [];
+let cachedPolicyLimit = 50.0;
 
 document.addEventListener("DOMContentLoaded", () => {
     initApp();
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function initApp() {
     setupEventListeners();
     setupTabs();
+    setupPolicyControls();
     updateThreadDisplay();
     fetchLivePolicy();
     fetchPendingRequests();
@@ -25,6 +27,10 @@ function initApp() {
         fetchAuditLogs();
     }, 3000);
 }
+
+// -------------------------------------------------------------
+// Navigation & Tab Switching (Segmented Pills)
+// -------------------------------------------------------------
 
 function setupTabs() {
     const tabGovBtn = document.getElementById("tab-governance-btn");
@@ -65,15 +71,65 @@ function updateThreadDisplay() {
     }
 }
 
+// -------------------------------------------------------------
+// Interactive Policy Controls (Slider + Presets + Input)
+// -------------------------------------------------------------
+
+function setupPolicyControls() {
+    const slider = document.getElementById("policy-slider");
+    const input = document.getElementById("policy-limit-input");
+
+    if (slider && input) {
+        slider.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            input.value = val;
+            updatePresetPillsActiveState(val);
+        });
+
+        input.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) {
+                slider.value = Math.min(Math.max(val, 0), 500);
+                updatePresetPillsActiveState(val);
+            }
+        });
+    }
+}
+
+function setPolicyPreset(amount) {
+    const slider = document.getElementById("policy-slider");
+    const input = document.getElementById("policy-limit-input");
+
+    if (input) input.value = amount;
+    if (slider) slider.value = Math.min(Math.max(amount, 0), 500);
+
+    updatePresetPillsActiveState(amount);
+    showToast(`Preset $${amount}.00 selected. Click 'Update Policy' to commit to MongoDB.`);
+}
+
+function updatePresetPillsActiveState(currentVal) {
+    document.querySelectorAll(".policy-preset-pill").forEach(pill => {
+        const text = pill.innerText.replace("$", "").trim();
+        const pillVal = parseFloat(text);
+        if (pillVal === currentVal) {
+            pill.classList.add("active");
+        } else {
+            pill.classList.remove("active");
+        }
+    });
+}
+
+// -------------------------------------------------------------
+// Event Listeners & Setup
+// -------------------------------------------------------------
+
 function setupEventListeners() {
     const chatForm = document.getElementById("chat-form");
     const chatInput = document.getElementById("chat-input");
     const voiceToggle = document.getElementById("voice-toggle-btn");
     const schemaTestBtn = document.getElementById("schema-test-btn");
     const updatePolicyBtn = document.getElementById("update-policy-btn");
-    const newThreadBtn = document.getElementById("new-thread-btn");
-    const clearQueueBtn = document.getElementById("clear-queue-btn");
-    const clearStaleBtn = document.getElementById("clear-stale-btn");
+    const resetDemoBtn = document.getElementById("reset-demo-btn");
     const clearAllPendingBtn = document.getElementById("clear-all-pending-btn");
     const closeBsonModalBtn = document.getElementById("close-bson-modal-btn");
     const copyBsonBtn = document.getElementById("copy-bson-btn");
@@ -81,6 +137,10 @@ function setupEventListeners() {
 
     if (clearAllPendingBtn) {
         clearAllPendingBtn.addEventListener("click", clearPendingQueue);
+    }
+
+    if (resetDemoBtn) {
+        resetDemoBtn.addEventListener("click", resetDemoSession);
     }
 
     if (bsonModal) {
@@ -127,18 +187,6 @@ function setupEventListeners() {
         updatePolicyBtn.addEventListener("click", updatePolicyFromInput);
     }
 
-    if (newThreadBtn) {
-        newThreadBtn.addEventListener("click", startNewSession);
-    }
-
-    if (clearQueueBtn) {
-        clearQueueBtn.addEventListener("click", clearPendingQueue);
-    }
-
-    if (clearStaleBtn) {
-        clearStaleBtn.addEventListener("click", clearPendingQueue);
-    }
-
     if (closeBsonModalBtn) {
         closeBsonModalBtn.addEventListener("click", () => {
             document.getElementById("bson-modal").classList.add("hidden");
@@ -164,13 +212,16 @@ function setupEventListeners() {
     });
 }
 
-function startNewSession() {
+async function resetDemoSession() {
+    await clearPendingQueue();
     currentThreadId = "thread_ORD_" + Math.random().toString(36).substring(2, 8).toUpperCase();
     updateThreadDisplay();
     const messagesContainer = document.getElementById("chat-messages");
-    messagesContainer.innerHTML = "";
-    appendSystemMessage(`New customer session started: ${currentThreadId}`);
-    showToast("Started fresh customer order session.");
+    if (messagesContainer) {
+        messagesContainer.innerHTML = "";
+        appendSystemMessage(`Demo environment reset. Clean slate: ${currentThreadId}`);
+    }
+    showToast("Demo environment reset. Fresh order session ready.");
 }
 
 async function clearPendingQueue() {
@@ -183,7 +234,7 @@ async function clearPendingQueue() {
             return;
         }
 
-        // Cleanly resolve pending items via the existing reject endpoint
+        // Cleanly dismiss pending items via reject endpoint
         let resolved = 0;
         for (const req of pending) {
             await fetch(`/api/reject/${req.request_id}`, {
@@ -207,21 +258,21 @@ function updateVoiceToggleButton() {
     if (!btn) return;
     if (voiceEnabled) {
         btn.innerHTML = `
-            <span class="h-2 w-2 rounded-full bg-[#008060] mr-1.5"></span>
+            <span class="h-2 w-2 rounded-full bg-[#10B981]"></span>
             <span>Voice: <strong>ON</strong></span>
         `;
-        btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-[#E3F1DF] border border-[#B7DDB1] text-[#006E52] hover:bg-[#D5EBD0] flex items-center transition";
+        btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#008060]/20 border border-[#008060]/50 text-[#34D399] hover:bg-[#008060]/30 flex items-center gap-1.5 transition";
     } else {
         btn.innerHTML = `
-            <span class="h-2 w-2 rounded-full bg-[#8C9196] mr-1.5"></span>
+            <span class="h-2 w-2 rounded-full bg-[#9CA3AF]"></span>
             <span>Voice: <strong>MUTED</strong></span>
         `;
-        btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200 flex items-center transition";
+        btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/10 border border-white/15 text-white/60 hover:bg-white/15 flex items-center gap-1.5 transition";
     }
 }
 
 // -------------------------------------------------------------
-// Customer Chat & ElevenLabs Voice
+// Customer Chat & ElevenLabs Voice (Editorial Personal Shopper)
 // -------------------------------------------------------------
 
 async function sendChatMessage(message) {
@@ -263,14 +314,15 @@ async function sendChatMessage(message) {
 
 function appendUserMessage(text) {
     const container = document.getElementById("chat-messages");
+    if (!container) return;
     const div = document.createElement("div");
     div.className = "flex justify-end mb-4 animate-fade-in";
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     div.innerHTML = `
-        <div class="max-w-[82%] rounded-2xl rounded-tr-sm bg-[#EBF5F0] border border-[#CDE5D8] px-4 py-3 text-sm text-[#202223] shadow-sm">
-            <p class="leading-relaxed font-normal">${escapeHtml(text)}</p>
-            <div class="flex items-center justify-end gap-1.5 mt-1 text-[11px] text-[#6D7175]">
+        <div class="customer-card-bubble">
+            <p class="leading-relaxed text-xs font-normal">${escapeHtml(text)}</p>
+            <div class="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-[#6D7175]">
                 <span>Customer</span>
                 <span>•</span>
                 <span>${timeStr}</span>
@@ -283,13 +335,18 @@ function appendUserMessage(text) {
 
 function appendAgentMessage(text, status, requestId, audioB64) {
     const container = document.getElementById("chat-messages");
+    if (!container) return;
     const div = document.createElement("div");
     div.className = "flex justify-start mb-4 animate-fade-in";
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    let borderClass = "state-auto-approved";
     let pillHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-300">Policy Checked</span>`;
+    let receiptStatus = "Policy Evaluated";
 
     if (status === "AUTO_APPROVED") {
+        borderClass = "state-auto-approved";
+        receiptStatus = `Auto-Approved (≤ $${cachedPolicyLimit.toFixed(2)} limit)`;
         pillHtml = `
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E3F1DF] text-[#006E52] border border-[#B7DDB1]">
                 <svg class="w-3 h-3 mr-1 text-[#008060]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
@@ -297,58 +354,72 @@ function appendAgentMessage(text, status, requestId, audioB64) {
             </span>
         `;
     } else if (status === "PENDING_APPROVAL") {
+        borderClass = "state-pending-approval";
+        receiptStatus = `Paused in MongoDB (> $${cachedPolicyLimit.toFixed(2)} limit)`;
         pillHtml = `
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">
-                <svg class="w-3 h-3 mr-1 text-[#B98900]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Paused for Human Manager (> Limit)
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]">
+                <svg class="w-3 h-3 mr-1 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Paused for Human Manager Gate
             </span>
         `;
     } else if (status === "HUMAN_APPROVED") {
+        borderClass = "state-auto-approved";
+        receiptStatus = "Manager Override Approved";
         pillHtml = `
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EBF5FF] text-[#0066CC] border border-[#B8DAFF]">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                 Manager Approved
             </span>
         `;
     } else if (status === "HUMAN_REJECTED") {
+        borderClass = "state-blocked";
+        receiptStatus = "Manager Declined Refund";
         pillHtml = `
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FDEBE7] text-[#D82C0D] border border-[#FACDC6]">
-                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
                 Manager Declined
             </span>
         `;
     }
 
     const audioButtonHtml = audioB64 ? `
-        <button onclick="playAudioFromBase64('${audioB64}')" class="mt-2.5 inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-[#FAF9F6] border border-[#E1E3E5] text-[#008060] hover:bg-[#EBF5F0] hover:border-[#B7DDB1] transition">
-            <svg class="w-3.5 h-3.5 mr-1.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+        <button onclick="playAudioFromBase64('${audioB64}')" class="mt-2 inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-[#FAF9F6] border border-[#E5E7EB] text-[#008060] hover:bg-[#EBF5F0] hover:border-[#B7DDB1] transition">
+            <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
             Replay ElevenLabs Voice
         </button>
     ` : '';
 
     div.innerHTML = `
-        <div class="max-w-[88%] rounded-2xl rounded-tl-sm bg-[#FFFFFF] border border-[#E1E3E5] p-4 text-sm text-[#202223] shadow-sm">
-            <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="agent-card-bubble ${borderClass}">
+            <div class="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-[#F0F2F5]">
                 <div class="flex items-center gap-1.5">
                     <div class="w-5 h-5 rounded-full bg-[#E3F1DF] text-[#008060] flex items-center justify-center font-bold text-[10px]">
-                        VG
+                        VS
                     </div>
-                    <span class="text-xs font-bold text-[#202223]">Verve Concierge</span>
-                    <span class="text-[11px] font-mono text-[#6D7175]">(agent_01)</span>
+                    <span class="text-xs font-bold text-[#1A1A1A]">Verve Concierge</span>
+                    <span class="text-[10px] font-mono text-[#6D7175]">(agent_01)</span>
                 </div>
                 ${pillHtml}
             </div>
-            <p class="leading-relaxed text-[#202223]">${escapeHtml(text)}</p>
-            ${requestId ? `
-                <div class="mt-2 px-2.5 py-1 rounded bg-[#FAF9F6] border border-[#EDEEEF] inline-flex items-center gap-1.5 text-[11px] text-[#6D7175]">
-                    <span>Atlas Request ID:</span>
-                    <strong class="font-mono text-[#B98900]">${escapeHtml(requestId)}</strong>
+            
+            <p class="leading-relaxed text-xs text-[#202223]">${escapeHtml(text)}</p>
+
+            <!-- Embedded Mini-Receipt Verification Card -->
+            <div class="mini-receipt-card text-[#4B5563]">
+                <div class="flex justify-between items-center">
+                    <span>Policy Limit: <strong>$${cachedPolicyLimit.toFixed(2)} USD</strong></span>
+                    <span>Status: <strong class="text-[#1A1A1A]">${escapeHtml(receiptStatus)}</strong></span>
                 </div>
-            ` : ''}
-            <div>
-                ${audioButtonHtml}
+                ${requestId ? `
+                    <div class="flex justify-between items-center mt-1 pt-1 border-t border-dashed border-gray-200">
+                        <span>MongoDB Request ID:</span>
+                        <strong class="font-mono text-[#D97706]">${escapeHtml(requestId)}</strong>
+                    </div>
+                ` : ''}
             </div>
-            <div class="mt-2 text-[10px] text-[#8C9196] text-right font-mono">${timeStr}</div>
+
+            <div class="flex items-center justify-between mt-2">
+                <div>${audioButtonHtml}</div>
+                <div class="text-[10px] text-[#9CA3AF] font-mono">${timeStr}</div>
+            </div>
         </div>
     `;
     container.appendChild(div);
@@ -357,10 +428,11 @@ function appendAgentMessage(text, status, requestId, audioB64) {
 
 function appendSystemMessage(text) {
     const container = document.getElementById("chat-messages");
+    if (!container) return;
     const div = document.createElement("div");
-    div.className = "flex justify-center my-3 animate-fade-in";
+    div.className = "flex justify-center my-2.5 animate-fade-in";
     div.innerHTML = `
-        <div class="bg-[#FAF9F6] border border-[#E1E3E5] rounded-full px-3.5 py-1 text-[11px] text-[#6D7175] shadow-xs">
+        <div class="bg-[#F3EFEA] border border-[#E8E5DF] rounded-full px-3.5 py-0.5 text-[10px] text-[#6D7175] font-medium">
             ${escapeHtml(text)}
         </div>
     `;
@@ -376,7 +448,7 @@ function showChatLoading(show) {
 }
 
 // -------------------------------------------------------------
-// Audio Player & Mint Sound Wave Visualizer
+// Audio Player & Animated Equalizer Bars
 // -------------------------------------------------------------
 
 function playAudioFromBase64(base64DataUri) {
@@ -424,14 +496,24 @@ async function fetchLivePolicy() {
         const data = await res.json();
         if (data.success && data.policy) {
             const limit = data.policy.max_auto_refund;
+            cachedPolicyLimit = limit;
+
             const heroElem = document.getElementById("live-policy-limit-hero");
             if (heroElem) {
                 heroElem.innerText = `$${limit.toFixed(2)}`;
             }
+
             const input = document.getElementById("policy-limit-input");
+            const slider = document.getElementById("policy-slider");
+
             if (input && document.activeElement !== input) {
                 input.value = limit;
             }
+            if (slider && document.activeElement !== slider) {
+                slider.value = Math.min(Math.max(limit, 0), 500);
+            }
+
+            updatePresetPillsActiveState(limit);
         }
     } catch (e) {
         console.error("Error fetching live policy:", e);
@@ -454,6 +536,7 @@ async function updatePolicyFromInput() {
         });
         const data = await res.json();
         if (res.ok) {
+            cachedPolicyLimit = val;
             fetchLivePolicy();
             showToast(`MongoDB Atlas policy updated: limit is now $${val.toFixed(2)} USD`);
         } else {
@@ -481,11 +564,21 @@ async function fetchPendingRequests() {
     }
 }
 
-function renderPendingRequests(requests) {
+function renderPendingRequests(rawRequests) {
     const tbody = document.getElementById("pending-requests-tbody");
     const countBadge = document.getElementById("pending-count-badge");
     const tabBadge = document.getElementById("tab-pending-badge");
-    
+
+    // Deduplicate by request_id
+    const seen = new Set();
+    const requests = [];
+    for (const r of rawRequests) {
+        if (!seen.has(r.request_id)) {
+            seen.add(r.request_id);
+            requests.push(r);
+        }
+    }
+
     if (countBadge) countBadge.innerText = requests.length;
     if (tabBadge) tabBadge.innerText = requests.length;
 
@@ -498,7 +591,7 @@ function renderPendingRequests(requests) {
                     <div class="w-9 h-9 mx-auto mb-2 rounded-full bg-[#E3F1DF] text-[#008060] flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     </div>
-                    <p class="text-xs font-bold text-[#202223]">Queue Clear</p>
+                    <p class="text-xs font-bold text-[#1A1A1A]">Governance Queue Clear</p>
                     <p class="text-[11px] text-[#6D7175] mt-0.5">All customer requests are operating within autonomous policy bounds.</p>
                 </td>
             </tr>
@@ -509,45 +602,49 @@ function renderPendingRequests(requests) {
     tbody.innerHTML = requests.map(req => {
         const isInjection = /override|ignore|jailbreak|bypass|hack/i.test(req.reason || "");
         const formattedDate = req.created_at ? new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Just now";
+        const dotColor = isInjection ? "bg-[#DC2626]" : "bg-[#D97706]";
 
         return `
-            <tr class="hover:bg-[#FAF9F6] transition">
+            <tr class="hover:bg-[#FAFBFB] transition">
                 <td class="whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
-                        <span class="font-mono text-xs font-bold text-[#B98900] bg-[#FFF5EA] px-2 py-0.5 rounded border border-[#FFE0B2]">
+                        <span class="h-2 w-2 rounded-full ${dotColor} flex-shrink-0"></span>
+                        <span class="font-mono text-xs font-bold text-[#D97706] bg-[#FFFBEB] px-2 py-0.5 rounded border border-[#FDE68A]">
                             ${escapeHtml(req.request_id)}
                         </span>
                         ${isInjection ? `
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FDEBE7] text-[#D82C0D] border border-[#FACDC6]">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
                                 ⚠️ Prompt Injection
                             </span>
                         ` : ''}
                     </div>
-                    <div class="text-[10px] text-[#6D7175] font-mono mt-0.5 flex items-center gap-1">
+                    <div class="text-[10px] text-[#6D7175] font-mono mt-1 flex items-center gap-1">
                         <span>${formattedDate}</span>
                         <span>•</span>
-                        <span class="truncate max-w-[120px]" title="${escapeHtml(req.thread_id)}">${escapeHtml(req.thread_id)}</span>
+                        <span class="truncate max-w-[110px]" title="${escapeHtml(req.thread_id)}">${escapeHtml(req.thread_id)}</span>
                     </div>
                 </td>
                 <td>
                     <div class="text-xs text-[#202223] max-w-xs md:max-w-sm truncate cursor-help" title="${escapeHtml(req.reason)}">
                         ${escapeHtml(req.reason)}
                     </div>
-                    <div class="text-[10px] text-[#6D7175] mt-0.5">
-                        Applied Limit: <strong class="font-mono">$${parseFloat(req.policy_limit_applied || 50).toFixed(2)}</strong>
+                    <div class="text-[10px] text-[#6D7175] mt-0.5 flex items-center gap-1">
+                        <span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono text-[9px]">
+                            Exceeds $${parseFloat(req.policy_limit_applied || 50).toFixed(2)} limit
+                        </span>
                     </div>
                 </td>
                 <td class="text-right whitespace-nowrap">
-                    <span class="text-sm font-extrabold text-[#202223] font-mono">$${parseFloat(req.amount).toFixed(2)}</span>
-                    <span class="text-[10px] text-[#6D7175] block -mt-0.5">USD</span>
+                    <span class="text-sm font-extrabold text-[#1A1A1A] font-mono">$${parseFloat(req.amount).toFixed(2)}</span>
+                    <span class="text-[9px] text-[#6D7175] block -mt-0.5">USD</span>
                 </td>
                 <td class="text-right whitespace-nowrap">
                     <div class="inline-flex items-center gap-1.5">
-                        <button onclick="approveRequest('${req.request_id}')" class="btn-emerald px-3 py-1.5 text-xs flex items-center gap-1 shadow-2xs">
+                        <button onclick="approveRequest('${req.request_id}')" class="btn-emerald px-3 py-1.5 text-xs flex items-center gap-1 shadow-xs">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
                             <span>Approve</span>
                         </button>
-                        <button onclick="rejectRequest('${req.request_id}')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D82C0D] text-[#D82C0D] hover:bg-[#FDEBE7] transition flex items-center gap-1">
+                        <button onclick="rejectRequest('${req.request_id}')" class="btn-secondary-white px-2.5 py-1.5 text-xs text-[#DC2626] hover:bg-[#FEF2F2] hover:border-[#FECACA] flex items-center gap-1 transition">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             <span>Decline</span>
                         </button>
@@ -563,7 +660,7 @@ async function approveRequest(requestId) {
         const res = await fetch(`/api/approve/${requestId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ manager_notes: "Approved via Polaris Governance Console" })
+            body: JSON.stringify({ manager_notes: "Approved via Shopify Editions Governance Console" })
         });
         const data = await res.json();
         if (res.ok) {
@@ -586,7 +683,7 @@ async function rejectRequest(requestId) {
         const res = await fetch(`/api/reject/${requestId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ manager_notes: "Declined via Polaris Governance Console" })
+            body: JSON.stringify({ manager_notes: "Declined via Shopify Editions Governance Console" })
         });
         const data = await res.json();
         if (res.ok) {
@@ -625,7 +722,7 @@ function renderAuditLogs(logs) {
     const tbody = document.getElementById("audit-logs-tbody");
     const countBadge = document.getElementById("audit-count-badge");
     const tabBadge = document.getElementById("tab-audit-badge");
-    
+
     if (countBadge) countBadge.innerText = logs.length;
     if (tabBadge) tabBadge.innerText = logs.length;
     if (!tbody) return;
@@ -640,19 +737,19 @@ function renderAuditLogs(logs) {
         let eventName = "Refund Review";
 
         if (log.decision === "AUTO_APPROVED") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E3F1DF] text-[#006E52] border border-[#B7DDB1]">Auto-Approved</span>`;
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E3F1DF] text-[#006E52] border border-[#B7DDB1]">AUTO-APPROVED</span>`;
             eventName = "Autonomous Execution";
         } else if (log.decision === "PENDING_APPROVAL") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">Pending Review</span>`;
-            eventName = "Human Gate Paused";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]">PENDING-APPROVAL</span>`;
+            eventName = "HITL Gate Paused";
         } else if (log.decision === "HUMAN_APPROVED") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EBF5FF] text-[#0066CC] border border-[#B8DAFF]">Manager Approved</span>`;
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EBF5FF] text-[#0066CC] border border-[#B8DAFF]">HUMAN-APPROVED</span>`;
             eventName = "HITL Override Resumed";
         } else if (log.decision === "HUMAN_REJECTED") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FDEBE7] text-[#D82C0D] border border-[#FACDC6]">Declined</span>`;
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">DECLINED</span>`;
             eventName = "Manager Decline Resumed";
         } else if (log.decision === "BLOCKED_BY_SCHEMA") {
-            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F3E8FF] text-[#7E22CE] border border-[#D8B4FE]">Blocked (Schema)</span>`;
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F3E8FF] text-[#7E22CE] border border-[#D8B4FE]">BLOCKED (SCHEMA)</span>`;
             eventName = "$jsonSchema Tamper Block";
         } else {
             badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 border border-gray-300">${escapeHtml(log.decision || "LOG")}</span>`;
@@ -663,25 +760,25 @@ function renderAuditLogs(logs) {
         const shortId = rawId.length > 12 ? rawId.substring(0, 10) + "..." : rawId;
 
         return `
-            <tr class="hover:bg-[#FAF9F6] transition text-xs">
+            <tr class="hover:bg-[#FAFBFB] transition text-xs">
                 <td class="text-[#6D7175] font-mono whitespace-nowrap">${dateStr}</td>
                 <td>
-                    <div class="font-bold text-[#202223]">${eventName}</div>
+                    <div class="font-bold text-[#1A1A1A]">${eventName}</div>
                     <div class="text-[10px] text-[#6D7175] font-mono">Agent: ${escapeHtml(log.agent_id || "agent_01")}</div>
                 </td>
-                <td class="text-right font-extrabold text-[#202223] font-mono whitespace-nowrap">
+                <td class="text-right font-extrabold text-[#1A1A1A] font-mono whitespace-nowrap">
                     $${parseFloat(log.user_requested_amount || 0).toFixed(2)}
                 </td>
                 <td class="whitespace-nowrap">
                     ${badgeHtml}
                 </td>
                 <td class="whitespace-nowrap">
-                    <span class="px-2 py-0.5 rounded font-mono text-[11px] bg-[#FAF9F6] border border-[#E1E3E5] text-[#6D7175]" title="${escapeHtml(rawId)}">
+                    <span class="px-2 py-0.5 rounded font-mono text-[11px] bg-[#FAF9F6] border border-[#E5E7EB] text-[#6D7175]" title="${escapeHtml(rawId)}">
                         ${escapeHtml(shortId)}
                     </span>
                 </td>
                 <td class="text-right whitespace-nowrap">
-                    <button onclick="openBsonInspector(${index})" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-[#E1E3E5] text-[#202223] hover:border-[#008060] hover:text-[#008060] hover:bg-[#FAF9F6] transition inline-flex items-center gap-1.5 shadow-2xs">
+                    <button onclick="openBsonInspector(${index})" class="btn-secondary-white px-2.5 py-1 text-xs inline-flex items-center gap-1.5 shadow-2xs">
                         <svg class="w-3.5 h-3.5 text-[#008060]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                         <span>Inspect BSON</span>
                     </button>
@@ -719,7 +816,7 @@ async function runSchemaValidationTest() {
 
             if (r.blocked) {
                 pre.innerText = JSON.stringify(r.raw_rejection || r, null, 2);
-                showToast("MongoDB Atlas physically rejected the invalid document (Code 121)!");
+                showToast("MongoDB Atlas physically rejected invalid write (Code 121)!");
             } else {
                 pre.innerText = JSON.stringify(r, null, 2);
             }
@@ -731,7 +828,10 @@ async function runSchemaValidationTest() {
     }
 }
 
+// -------------------------------------------------------------
 // Utility Helpers
+// -------------------------------------------------------------
+
 function escapeHtml(text) {
     if (!text) return "";
     return String(text)

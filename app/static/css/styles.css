@@ -1,66 +1,236 @@
-/* AuditGate - Shopify Polaris / Modern Flagship E-Commerce Aesthetic (Zero Dark Mode) */
+/* AuditGate - Shopify Editions & Sidekick Flagship Craft Aesthetic */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  --canvas-bg: #F6F6F7;
-  --card-bg: #FFFFFF;
-  --hairline-border: #E1E3E5;
-  --border-subtle: #EDEEEF;
-  --text-primary: #202223;
-  --text-secondary: #6D7175;
-  --text-subdued: #8C9196;
+  /* Obsidian Top Chrome */
+  --obsidian-bg: #1A1A1A;
+  --obsidian-card: #242424;
+  --obsidian-border: rgba(255, 255, 255, 0.12);
+
+  /* Left Pane: Warm Luxury Editorial Storefront */
+  --store-canvas: #FAF8F5;
+  --store-surface: #FFFFFF;
+  --store-border: #E8E5DF;
+  --store-subtle: #F3EFEA;
+
+  /* Right Pane: Shopify Admin / Polaris Next */
+  --admin-canvas: #F1F2F4;
+  --admin-card: #FFFFFF;
+  --admin-border: rgba(0, 0, 0, 0.08);
+  --admin-border-subtle: #EDEEEF;
+
+  /* Brand Accents */
   --emerald-primary: #008060;
   --emerald-hover: #006E52;
   --emerald-pressed: #005E46;
   --emerald-tint: #E3F1DF;
   --emerald-surface: #EBF5F0;
-  --amber-primary: #B98900;
-  --amber-tint: #FFF5EA;
-  --coral-primary: #D82C0D;
-  --coral-tint: #FDEBE7;
-  --blue-primary: #0066CC;
-  --blue-tint: #EBF5FF;
-  --purple-primary: #7E22CE;
-  --purple-tint: #F3E8FF;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
-  --card-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.08), 0 12px 24px rgba(0, 0, 0, 0.06);
+  --emerald-glow: rgba(0, 128, 96, 0.2);
+
+  --lime-accent: #10B981;
+  --lime-bright: #34D399;
+
+  --amber-primary: #D97706;
+  --amber-tint: #FFFBEB;
+  --amber-border: #FDE68A;
+
+  --crimson-primary: #DC2626;
+  --crimson-tint: #FEF2F2;
+  --crimson-border: #FECACA;
+
+  --text-primary: #202223;
+  --text-secondary: #6D7175;
+  --text-subdued: #8C9196;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-body {
-  background-color: var(--canvas-bg);
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background-color: var(--store-canvas);
   color: var(--text-primary);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Polaris Card Styles */
-.polaris-card {
-  background: var(--card-bg);
-  border: 1px solid var(--hairline-border);
+/* Typography Helpers */
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Layout Core: Strict 100vh Lock */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.top-chrome {
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  background-color: var(--obsidian-bg);
+  border-bottom: 1px solid var(--obsidian-border);
+  flex-shrink: 0;
+}
+
+.workspace-canvas {
+  height: calc(100vh - 56px);
+  max-height: calc(100vh - 56px);
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* Left Pane: Verve Studio Storefront */
+.storefront-pane {
+  width: 40%;
+  min-width: 420px;
+  height: 100%;
+  background-color: var(--store-canvas);
+  border-right: 1px solid var(--store-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right Pane: Merchant Governance Center */
+.governance-pane {
+  width: 60%;
+  height: 100%;
+  background-color: var(--admin-canvas);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tactile Order Showcase Cards */
+.order-showcase-card {
+  background: #FFFFFF;
+  border: 1px solid var(--store-border);
   border-radius: 12px;
-  box-shadow: var(--card-shadow);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.polaris-card:hover {
-  box-shadow: var(--card-shadow-hover);
-}
-
-/* Product/Order Preset Cards */
-.order-preset-card {
-  background: var(--card-bg);
-  border: 1px solid var(--hairline-border);
-  border-radius: 10px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 12px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
 
-.order-preset-card:hover {
+.order-showcase-card:hover {
   border-color: var(--emerald-primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 128, 96, 0.12);
+  box-shadow: 0 8px 20px rgba(0, 128, 96, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
-/* Primary Shopify Action Button */
+.order-showcase-card:hover .card-action-cue {
+  color: var(--emerald-primary);
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.card-action-cue {
+  opacity: 0.7;
+  transform: translateX(-2px);
+  transition: all 0.2s ease;
+}
+
+/* Editorial Concierge Chat Area */
+.chat-scroll-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  scroll-behavior: smooth;
+}
+
+/* Personal Shopper Agent Bubble */
+.agent-card-bubble {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-left: 3.5px solid #008060;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  max-width: 90%;
+  transition: border-color 0.2s ease;
+}
+
+.agent-card-bubble.state-auto-approved {
+  border-left-color: #008060;
+}
+
+.agent-card-bubble.state-pending-approval {
+  border-left-color: #D97706;
+}
+
+.agent-card-bubble.state-blocked {
+  border-left-color: #DC2626;
+}
+
+/* Mini-Receipt Card inside Agent Message */
+.mini-receipt-card {
+  background-color: #F8F9FA;
+  border: 1px dashed #D1D5DB;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Customer Chat Bubble */
+.customer-card-bubble {
+  background: #EBF5F0;
+  border: 1px solid #CDE5D8;
+  border-radius: 16px;
+  border-top-right-radius: 4px;
+  padding: 12px 16px;
+  color: #202223;
+  max-width: 82%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+/* Quick Prompt Chip */
+.prompt-chip {
+  background-color: #FFFFFF;
+  border: 1px solid var(--store-border);
+  color: #4B5563;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.prompt-chip:hover {
+  background-color: #F3EFEA;
+  border-color: #D1D5DB;
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+/* Shopify Buttons */
 .btn-emerald {
   background-color: var(--emerald-primary);
   color: #FFFFFF;
@@ -72,146 +242,208 @@ body {
 
 .btn-emerald:hover {
   background-color: var(--emerald-hover);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 128, 96, 0.25);
 }
 
-.btn-emerald:active {
-  background-color: var(--emerald-pressed);
-}
-
-/* Secondary White Action Button */
-.btn-secondary {
+.btn-secondary-white {
   background-color: #FFFFFF;
-  color: var(--text-primary);
-  border: 1px solid var(--hairline-border);
-  font-weight: 600;
+  color: #374151;
+  border: 1px solid #D1D5DB;
   border-radius: 8px;
+  font-weight: 600;
   transition: all 0.15s ease-in-out;
 }
 
-.btn-secondary:hover {
-  background-color: #F6F6F7;
-  border-color: #C9CCCF;
+.btn-secondary-white:hover {
+  background-color: #F9FAFB;
+  border-color: #9CA3AF;
+  color: #111827;
 }
 
-/* Sound wave animation in Mint / Emerald */
-.sound-bar {
-  display: inline-block;
-  width: 3px;
-  height: 12px;
-  background-color: var(--emerald-primary);
-  border-radius: 2px;
-  margin: 0 1px;
-  animation: soundWaveLight 1.2s ease-in-out infinite;
-}
-
-.sound-bar:nth-child(1) { animation-delay: 0.1s; }
-.sound-bar:nth-child(2) { animation-delay: 0.3s; }
-.sound-bar:nth-child(3) { animation-delay: 0.2s; }
-.sound-bar:nth-child(4) { animation-delay: 0.4s; }
-.sound-bar:nth-child(5) { animation-delay: 0.15s; }
-
-@keyframes soundWaveLight {
-  0%, 100% { height: 4px; }
-  50% { height: 16px; }
-}
-
-/* Modern Clean Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #F1F2F3;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #C9CCCF;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #8C9196;
-}
-
-/* Code & Hash styling */
-.font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-}
-
-/* Smooth fade in */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Segmented Polaris Tab Navigation */
-.polaris-tab {
+/* Segmented Polaris Tab Bar */
+.polaris-segmented-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  gap: 6px;
+  padding: 6px 14px;
   border-radius: 8px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: #6D7175;
   background-color: transparent;
   border: 1px solid transparent;
-  transition: all 0.15s ease-in-out;
   cursor: pointer;
+  transition: all 0.15s ease;
   user-select: none;
 }
 
-.polaris-tab:hover {
-  color: var(--text-primary);
+.polaris-segmented-pill:hover {
+  color: #202223;
   background-color: rgba(255, 255, 255, 0.7);
 }
 
-.polaris-tab.active {
-  color: var(--text-primary);
+.polaris-segmented-pill.active {
+  color: #202223;
   background-color: #FFFFFF;
-  border-color: var(--hairline-border);
+  border-color: var(--admin-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   font-weight: 700;
 }
 
-/* Polaris IndexTable */
-.polaris-index-table {
+/* Range Slider Styling */
+.polaris-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 4px;
+  background: #E5E7EB;
+  outline: none;
+  transition: background 0.15s;
+}
+
+.polaris-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--emerald-primary);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.polaris-range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: var(--emerald-hover);
+}
+
+/* Policy Preset Chips */
+.policy-preset-pill {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border-radius: 6px;
+  background-color: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  color: #4B5563;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.policy-preset-pill:hover, .policy-preset-pill.active {
+  background-color: var(--emerald-tint);
+  border-color: #B7DDB1;
+  color: var(--emerald-hover);
+}
+
+/* Polaris IndexTable for Right Pane */
+.polaris-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   text-align: left;
 }
 
-.polaris-index-table th {
-  background-color: #FAF9F6;
-  color: var(--text-secondary);
-  font-size: 0.6875rem;
+.polaris-table th {
+  background-color: #F9FAFB;
+  color: #6B7280;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.polaris-index-table td {
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.8125rem;
-  color: var(--text-primary);
+.polaris-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  font-size: 12px;
+  color: #1F2937;
   vertical-align: middle;
 }
 
-.polaris-index-table tr:last-child td {
-  border-bottom: none;
+.polaris-table tr:hover td {
+  background-color: #FAFBFB;
 }
 
-.polaris-index-table tr:hover td {
-  background-color: #FAF9F6;
+/* Audio Wave Visualizer Bars */
+.equalizer-bar {
+  display: inline-block;
+  width: 2.5px;
+  height: 12px;
+  background: linear-gradient(180deg, var(--lime-bright) 0%, var(--emerald-primary) 100%);
+  border-radius: 2px;
+  margin: 0 1px;
+  animation: soundBarDance 1s ease-in-out infinite;
 }
 
+.equalizer-bar:nth-child(1) { animation-delay: 0.1s; }
+.equalizer-bar:nth-child(2) { animation-delay: 0.3s; }
+.equalizer-bar:nth-child(3) { animation-delay: 0.15s; }
+.equalizer-bar:nth-child(4) { animation-delay: 0.4s; }
+.equalizer-bar:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes soundBarDance {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+/* Slide-Over Drawer for BSON Inspection */
+.slide-over-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  transition: opacity 0.25s ease;
+}
+
+.slide-over-panel {
+  width: 100%;
+  max-width: 580px;
+  height: 100%;
+  background: #FFFFFF;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Modern Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

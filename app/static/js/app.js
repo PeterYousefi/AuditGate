@@ -531,13 +531,13 @@ function appendAgentMessage(text, status, requestId, audioKey, userPrompt) {
         badgeHtml = `
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F7F0] text-[#047857] border border-[#B7EBD5]">
                 <svg class="w-3 h-3 mr-1 text-[#059669]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                Auto-Approved (≤ $${cachedPolicyLimit.toFixed(2)})
+                Refund Processed
             </span>
         `;
     } else {
         badgeHtml = `
             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#F3F4F6] text-[#4B5563] border border-[#EAEAEA]">
-                Policy Verified
+                Support Concierge
             </span>
         `;
     }
@@ -563,12 +563,8 @@ function appendAgentMessage(text, status, requestId, audioKey, userPrompt) {
 
         <p class="text-[15px] leading-[1.5] text-[#111827]">${escapeHtml(text)}</p>
 
-        <div class="mt-3 pt-2 border-t border-[#F0F0F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B7280]">
-            <div class="flex items-center gap-2">
-                <span>Rule: <strong class="text-[#111827] font-mono">≤ $${cachedPolicyLimit.toFixed(2)}</strong></span>
-                <span>•</span>
-                <span>Audit: <strong class="text-[#059669]">$jsonSchema Guaranteed</strong></span>
-            </div>
+        <div class="mt-3 pt-2 border-t border-[#F0F0F0] flex items-center justify-between text-xs text-[#6B7280]">
+            <span class="text-[11px] text-[#9CA3AF]">Support Assistant • Verified</span>
             <div>${audioButtonHtml}</div>
         </div>
     `;
@@ -611,36 +607,31 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioKey) 
     ` : '';
 
     div.innerHTML = `
-        <!-- Agent explanation message -->
+        <!-- Customer-facing explanation message (zero internal leak) -->
         <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#F0F0F0]">
             <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-[#FEF3C7] text-[#D97706] flex items-center justify-center font-bold text-[11px]">
-                    ⏳
+                <div class="w-6 h-6 rounded-full bg-[#E6F7F0] text-[#059669] flex items-center justify-center font-bold text-[11px]">
+                    AG
                 </div>
                 <span class="text-xs font-bold text-[#111827]">AuditGate Concierge</span>
                 <span class="text-[11px] font-mono text-[#6B7280]">(agent_01)</span>
             </div>
-            <div class="flex items-center gap-2">
-                ${isInjection ? `
-                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEE2E2] text-[#DC2626] border border-[#FECACA]">
-                        ⚠️ Security Guardrail Flagged
-                    </span>
-                ` : ''}
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
-                    Human Manager Gate Paused
-                </span>
-            </div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
+                Review in Progress
+            </span>
         </div>
 
         <p class="text-[15px] leading-[1.5] text-[#111827] mb-3">${escapeHtml(text)}</p>
 
-        <!-- Decision Box -->
+        <!-- Internal Manager Review Box (displays triggered rule for merchant/auditor) -->
         <div class="p-4 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
             <div class="flex items-center justify-between">
                 <div class="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-                    Pending Refund Request
+                    Manager Review Required
                 </div>
-                <div>${audioButtonHtml}</div>
+                <div class="flex items-center gap-2">
+                    ${audioButtonHtml}
+                </div>
             </div>
 
             <div class="text-[32px] font-black text-[#111827] font-mono leading-none my-1.5">
@@ -657,12 +648,12 @@ function renderInlineHitlCard(container, text, requestId, userPrompt, audioKey) 
                     <strong class="font-mono text-[#D97706] ml-1">${escapeHtml(requestId)}</strong>
                 </div>
                 <div>
-                    <span class="text-[#6B7280]">Applied Policy Limit:</span>
-                    <strong class="font-mono text-[#111827] ml-1">$${cachedPolicyLimit.toFixed(2)}</strong>
+                    <span class="text-[#6B7280]">Triggered Rule:</span>
+                    <strong class="font-mono text-[#D97706] ml-1">${isInjection ? 'Prompt Injection Flagged' : `Exceeds $${cachedPolicyLimit.toFixed(2)} live policy threshold`}</strong>
                 </div>
                 <div>
-                    <span class="text-[#6B7280]">Execution State:</span>
-                    <strong class="text-[#D97706] ml-1">Paused in Atlas Checkpoint</strong>
+                    <span class="text-[#6B7280]">Atlas Checkpoint:</span>
+                    <strong class="text-[#059669] ml-1">Paused in MongoDB</strong>
                 </div>
             </div>
 
@@ -703,7 +694,7 @@ async function approveInlineRequest(requestId, cardId, amount, orderId) {
         const data = await res.json();
         if (res.ok) {
             const respData = data.data || {};
-            const finalResp = respData.final_response || `Refund of $${amount} for order #${orderId} has been successfully approved by manager.`;
+            const finalResp = respData.final_response || `Good news! Your $${amount} refund has been approved and processed.`;
             const audioB64 = respData.audio_base64;
 
             let audioKey = null;
@@ -763,7 +754,7 @@ async function rejectInlineRequest(requestId, cardId, amount, orderId) {
         const data = await res.json();
         if (res.ok) {
             const respData = data.data || {};
-            const finalResp = respData.final_response || `Refund request for order #${orderId} was declined by manager.`;
+            const finalResp = respData.final_response || "Thank you for waiting. After review, your refund request was declined.";
             const audioB64 = respData.audio_base64;
 
             let audioKey = null;
@@ -949,7 +940,7 @@ async function approveFromDrawer(requestId) {
         const data = await res.json();
         if (res.ok) {
             const respData = data.data || {};
-            const finalResp = respData.final_response || `Refund request ${requestId} approved by manager.`;
+            const finalResp = respData.final_response || "Good news! Your refund has been approved and processed.";
             const audioB64 = respData.audio_base64;
 
             let audioKey = null;
@@ -986,7 +977,7 @@ async function rejectFromDrawer(requestId) {
         const data = await res.json();
         if (res.ok) {
             const respData = data.data || {};
-            const finalResp = respData.final_response || `Refund request ${requestId} declined by manager.`;
+            const finalResp = respData.final_response || "Thank you for waiting. After review, your refund request was declined.";
             const audioB64 = respData.audio_base64;
 
             let audioKey = null;

@@ -69,10 +69,11 @@ async def process_chat_message(req: ChatRequest):
             interrupt_payload = result["__interrupt__"][0].value if result.get("__interrupt__") else {}
             req_id = interrupt_payload.get("request_id")
             status_val = "PENDING_APPROVAL"
-            response_text = interrupt_payload.get("response_text") or (
-                f"Your refund request for ${interrupt_payload.get('amount', 0):.2f} exceeds our automated support limit of ${limit:.2f}. "
-                f"Your request ({req_id}) has been paused in LangGraph and submitted to human management for review."
-            )
+            amt = interrupt_payload.get("amount", 0)
+            order_id = interrupt_payload.get("order_id")
+            order_str = f" for order #{order_id}" if order_id else ""
+            default_text = f"Because of the refund amount, I've routed your ${amt:.2f} request{order_str} to a specialist for quick review. I'll update you right here as soon as it's approved."
+            response_text = interrupt_payload.get("response_text") or default_text
             audio_b64 = interrupt_payload.get("audio_base64")
             if not audio_b64:
                 audio_b64 = get_speech_audio_base64(response_text)

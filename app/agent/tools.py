@@ -70,7 +70,8 @@ def create_escalation_request_tool(
     amount: float,
     reason: str,
     order_id: Optional[str] = None,
-    agent_id: str = "agent_01"
+    agent_id: str = "agent_01",
+    is_injection: bool = False
 ) -> Dict[str, Any]:
     """
     Creates a pending refund request document in MongoDB Atlas 'refund_requests'
@@ -95,7 +96,8 @@ def create_escalation_request_tool(
         "created_at": now_iso,
         "decision_at": None,
         "decided_by": None,
-        "manager_notes": None
+        "manager_notes": None,
+        "is_prompt_injection": is_injection
     }
 
     col.insert_one(doc)
@@ -104,6 +106,14 @@ def create_escalation_request_tool(
     metadata = {"request_id": request_id, "customer_id": customer_id}
     if order_id:
         metadata["order_id"] = order_id
+    if is_injection:
+        metadata["guardrail_engaged"] = "prompt_injection"
+
+    audit_reason = (
+        f"Prompt Injection Defense Engaged: forwarded for manual review. Original input: {reason}"
+        if is_injection else
+        f"Exceeds ${live_limit:.2f} live policy threshold: amount (${amount:.2f}) > live limit (${live_limit:.2f}). Request ID: {request_id}"
+    )
 
     # Audit the escalation
     record_audit_log(
@@ -112,7 +122,7 @@ def create_escalation_request_tool(
         user_requested_amount=amount,
         policy_limit_applied=live_limit,
         decision="PENDING_APPROVAL",
-        reason=f"Escalated to human-in-the-loop gate: amount (${amount:.2f}) > live limit (${live_limit:.2f}). Request ID: {request_id}",
+        reason=audit_reason,
         metadata=metadata
     )
 

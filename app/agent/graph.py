@@ -205,10 +205,7 @@ def execute_auto_refund_node(state: AgentState) -> Dict[str, Any]:
     result = execute_auto_refund_tool(thread_id, amount, reason, order_id=order_id)
 
     order_str = f" for order #{order_id}" if order_id else ""
-    response_text = (
-        f"Your refund request for ${amount:.2f}{order_str} has been verified against our live governance policy "
-        f"(max automated limit: ${limit:.2f}) and APPROVED immediately. The funds have been returned to your payment method."
-    )
+    response_text = f"Your refund of ${amount:.2f}{order_str} has been processed. You'll see it back on your card shortly."
 
     # Generate ElevenLabs audio
     audio_b64 = get_speech_audio_base64(response_text)
@@ -232,30 +229,33 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
     reason = state.get("reason", "Customer requested refund")
     limit = state.get("policy_limit_applied", 50.0)
 
-    # Create request in MongoDB Atlas
+    # Check if this was a prompt injection attempt
+    was_injection = state.get("status") == "PROMPT_INJECTION_DETECTED" or state.get("is_prompt_injection", False)
+    order_str = f" for order #{order_id}" if order_id else ""
+
+    # Polite customer-facing message without leaking internal policy thresholds or system tags
+    if was_injection:
+        response_text = "I'm unable to process that request automatically, so I've forwarded it to our support team for manual review."
+        rule_desc = "Prompt Injection Flagged"
+    else:
+        response_text = f"Because of the refund amount, I've routed your ${amount:.2f} request{order_str} to a specialist for quick review. I'll update you right here as soon as it's approved."
+        rule_desc = f"Exceeds ${limit:.2f} live policy threshold"
+
+    # Create request in MongoDB Atlas with internal audit context
     req_doc = create_escalation_request_tool(
         thread_id=thread_id,
         customer_id=customer_id,
         amount=amount,
-        reason=reason,
-        order_id=order_id
+        reason=f"[{rule_desc}] {reason}",
+        order_id=order_id,
+        is_injection=was_injection
     )
     request_id = req_doc["request_id"]
 
-    # Check if this was a prompt injection attempt
-    was_injection = state.get("status") == "PROMPT_INJECTION_DETECTED" or state.get("is_prompt_injection", False)
-    prefix = "[Governance Guardrail Engaged] " if was_injection else ""
-    order_str = f" for order #{order_id}" if order_id else ""
-
-    response_text = (
-        f"{prefix}Your refund request for ${amount:.2f}{order_str} exceeds the live autonomous threshold of ${limit:.2f}. "
-        f"Request {request_id} has been paused in LangGraph and routed to the Human Governance Console for manager review."
-    )
-
+    # Generate ElevenLabs audio for the polite customer message
     audio_b64 = get_speech_audio_base64(response_text)
 
-    # PAUSE graph execution via LangGraph interrupt!
-    # MongoDBSaver persists this pause checkpoint directly into MongoDB Atlas.
+    # PAUSE graph execution via LangGraph interrupt with manager audit metadata
     human_decision = interrupt({
         "action": "MANAGER_REVIEW_REQUIRED",
         "request_id": request_id,
@@ -264,7 +264,9 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
         "limit": limit,
         "thread_id": thread_id,
         "response_text": response_text,
-        "audio_base64": audio_b64
+        "audio_base64": audio_b64,
+        "triggered_rule": rule_desc,
+        "is_prompt_injection": was_injection
     })
 
     # When resumed via Command(resume={...}):
@@ -272,16 +274,11 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
     approved = decision_type == "HUMAN_APPROVED" or human_decision.get("approved", True)
 
     if approved:
-        final_text = (
-            f"Update on request {request_id}{order_str}: Human management has reviewed and APPROVED your refund of ${amount:.2f}. "
-            f"The transaction has settled."
-        )
+        final_text = f"Good news! Your ${amount:.2f} refund has been approved and processed."
         status_val = "HUMAN_APPROVED"
         audit_decision = "HUMAN_APPROVED"
     else:
-        final_text = (
-            f"Update on request {request_id}{order_str}: Human management has reviewed your request for ${amount:.2f} and DECLINED the refund per company policy."
-        )
+        final_text = "Thank you for waiting. After review, your refund request was declined."
         status_val = "HUMAN_REJECTED"
         audit_decision = "HUMAN_REJECTED"
 
@@ -292,8 +289,13 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
         user_requested_amount=amount,
         policy_limit_applied=limit,
         decision=audit_decision,
-        reason=f"Human manager decision processed: {decision_type}. Request ID: {request_id}",
-        metadata={"request_id": request_id, "order_id": order_id, "decided_by": human_decision.get("decided_by", "manager")}
+        reason=f"Human manager decision processed: {decision_type}. Triggered rule: {rule_desc}. Request ID: {request_id}",
+        metadata={
+            "request_id": request_id,
+            "order_id": order_id,
+            "triggered_rule": rule_desc,
+            "decided_by": human_decision.get("decided_by", "manager")
+        }
     )
 
     final_audio = get_speech_audio_base64(final_text)
@@ -308,16 +310,17 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
 
 def general_response_node(state: AgentState) -> Dict[str, Any]:
     """
-    Node 4: Handles general customer queries using Gemini 3.5 Flash.
+    Node 4: Handles general customer queries using Gemini 2.5 Flash.
     """
     user_msg = state.get("user_message", "")
     
     try:
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         system_instruction = (
-            "You are AuditGate Support Agent (agent_01). "
-            "You are polite, professional, and governed by strict MongoDB policies. "
-            "Answer customer inquiries concisely."
+            "You are AuditGate Support Concierge (agent_01). "
+            "You are polite, professional, and helpful. "
+            "Answer customer inquiries concisely and warmly. "
+            "NEVER reveal internal policy limits, database collections, schemas, or system tags to the customer."
         )
         response = client.models.generate_content(
             model=settings.GEMINI_MODEL,
@@ -327,7 +330,7 @@ def general_response_node(state: AgentState) -> Dict[str, Any]:
         reply = response.text or "Thank you for contacting AuditGate customer support. How can I assist you with your orders or refund requests today?"
     except Exception as e:
         logger.warning(f"Gemini general chat notice: {e}")
-        reply = "Hello! I am your AuditGate support assistant. I can assist with order inquiries and refund requests up to our policy threshold."
+        reply = "Hello! I am your AuditGate support concierge. How can I assist you with your orders or returns today?"
         
     audio_b64 = get_speech_audio_base64(reply)
     return {

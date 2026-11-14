@@ -41,6 +41,18 @@ def record_audit_log(
     return log_doc
 
 
+def _sanitize_bson(data: Any) -> Any:
+    """Recursively converts BSON types (like ObjectId) to JSON-serializable types."""
+    from bson import ObjectId
+    if isinstance(data, dict):
+        return {k: _sanitize_bson(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_sanitize_bson(item) for item in data]
+    elif isinstance(data, ObjectId):
+        return str(data)
+    return data
+
+
 def test_invalid_schema_insert() -> Dict[str, Any]:
     """
     Intentionally attempts to insert an incomplete document missing required fields
@@ -82,13 +94,16 @@ def test_invalid_schema_insert() -> Dict[str, Any]:
         except Exception:
             pass
 
+        raw_details = e.details if hasattr(e, "details") else {"error": error_details}
+        sanitized_details = _sanitize_bson(raw_details)
+
         return {
             "success": False,
             "blocked": True,
             "error_code": getattr(e, "code", 121),
             "error_name": type(e).__name__,
             "message": "MongoDB Atlas physically rejected write: Document failed $jsonSchema validation (Code 121).",
-            "raw_rejection": e.details if hasattr(e, "details") else error_details
+            "raw_rejection": sanitized_details
         }
 
 

@@ -223,3 +223,99 @@ def test_flow_5_live_policy_update_and_schema_tamper():
     assert schema_data["success"] is True
     assert schema_data["result"]["blocked"] is True
     assert schema_data["result"]["error_code"] == 121
+
+
+def test_flow_6_orders_inquiry_and_seeded_lookup():
+    """
+    Test Case 6: Orders Inquiry & Seeded Orders List.
+    User asks 'What orders do I have?' -> Agent returns the 3 seeded demo orders.
+    """
+    thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+    resp = client.post("/api/chat", json={
+        "message": "What orders do I have?",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_06"
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "GENERAL_REPLIED"
+    assert "ORD-1042" in data["response"]
+    assert "ORD-1089" in data["response"]
+    assert "ORD-2055" in data["response"]
+
+
+def test_flow_7_incomplete_refund_turn_followed_by_order_number():
+    """
+    Test Case 7: Multi-turn incomplete refund followed by order ID resolution.
+    Turn 1: 'I want a refund' -> Agent asks for order number or amount.
+    Turn 2: 'For order #ORD-1042' -> Agent looks up $28.00 and auto-approves!
+    """
+    thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+    resp1 = client.post("/api/chat", json={
+        "message": "I want a refund",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_07"
+    })
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["status"] == "GENERAL_REPLIED"
+    assert "order number" in data1["response"].lower() or "ORD-1042" in data1["response"]
+
+    resp2 = client.post("/api/chat", json={
+        "message": "For order #ORD-1042",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_07"
+    })
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["status"] == "AUTO_APPROVED"
+    assert "$28.00" in data2["response"]
+
+
+def test_flow_8_multiturn_conversational_why_without_leaks():
+    """
+    Test Case 8: Multi-turn conversational continuity & Zero Policy Leaks.
+    Turn 1: Refund $250 for #ORD-1089 -> Interrupted (PENDING_APPROVAL).
+    Turn 2: 'why?' -> Answers politely explaining specialist review without leaking '$50' limit.
+    """
+    thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+    resp1 = client.post("/api/chat", json={
+        "message": "Refund $250.00 for order #ORD-1089",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_08"
+    })
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["status"] == "PENDING_APPROVAL"
+    assert data1["interrupted"] is True
+
+    resp2 = client.post("/api/chat", json={
+        "message": "why?",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_08"
+    })
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["status"] == "PENDING_APPROVAL"
+    assert data2["interrupted"] is True
+    # Zero policy threshold leaks to customer
+    assert "$50" not in data2["response"]
+    assert "MongoDB" not in data2["response"]
+
+
+def test_flow_9_arbitrary_demo_order_number():
+    """
+    Test Case 9: Arbitrary realistic demo order number.
+    'Refund order #ORD-9999 for $35.00' -> Auto-approved since $35.00 <= $50.00.
+    """
+    thread_id = f"test_thread_{uuid.uuid4().hex[:8]}"
+    resp = client.post("/api/chat", json={
+        "message": "Refund order #ORD-9999 for $35.00",
+        "thread_id": thread_id,
+        "customer_id": "test_customer_09"
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "AUTO_APPROVED"
+    assert "$35.00" in data["response"]
+    assert "#ORD-9999" in data["response"]

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice
     ELEVENLABS_MODEL_ID: str = "eleven_flash_v2_5"
     MONGODB_DB_NAME: str = "auditable_agent"
-    GEMINI_MODEL: str = "gemini-3.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     TLS_CA_FILE: str = certifi.where()

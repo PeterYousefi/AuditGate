@@ -83,6 +83,18 @@ def resume_interrupted_thread(
         }
         resumed_result = graph.invoke(Command(resume=resume_payload), config=config)
         logger.info(f"LangGraph thread '{thread_id}' resumed successfully. Final state status: {resumed_result.get('status')}")
+
+        # Ensure history in MongoDB Atlas checkpoint includes the manager resolution
+        try:
+            final_resp = resumed_result.get("final_response")
+            if final_resp:
+                st = graph.get_state(config)
+                hist = list(st.values.get("history") or [])
+                if not hist or hist[-1].get("content") != final_resp:
+                    hist.append({"role": "assistant", "content": final_resp})
+                    graph.update_state(config, {"history": hist})
+        except Exception as he:
+            logger.warning(f"Notice updating history post-resumption: {he}")
         return {
             "request_id": request_id,
             "status": status_str,

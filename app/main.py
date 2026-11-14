@@ -12,6 +12,7 @@ from app.database import (
     seed_default_policy_if_missing,
     close_mongodb_connection
 )
+from app.database.orders_service import seed_default_orders_if_missing
 from app.agent.hitl_manager import start_change_stream_background_listener
 from app.api import api_router
 
@@ -38,8 +39,9 @@ async def lifespan(app: FastAPI):
     # 1. Enforce $jsonSchema validation at MongoDB engine level
     init_schema_validation()
 
-    # 2. Seed default policy document
+    # 2. Seed default policy document & realistic demo orders
     seed_default_policy_if_missing()
+    seed_default_orders_if_missing()
 
     # 3. Start background MongoDB Change Stream listener
     start_change_stream_background_listener()

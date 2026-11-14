@@ -5,12 +5,13 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from pymongo import ReplaceOne
 
 from app.config import settings
 from app.database import get_collection
-from app.database.mongodb import get_async_mongodb_client
+from app.database.mongodb import get_async_mongodb_client, get_async_database
 from app.database.policy_service import get_live_policy, update_policy_limit
-from app.database.orders_service import list_all_demo_orders
+from app.database.orders_service import list_all_demo_orders, DEFAULT_SEEDED_ORDERS, ORDERS_COLLECTION
 from app.database.analytics_service import compute_audit_analytics
 from app.agent.hitl_manager import resume_interrupted_thread
 
@@ -190,3 +191,49 @@ async def sse_event_stream():
             logger.debug(f"SSE stream ended or disconnected: {e}")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/api/reset")
+async def reset_demo_endpoint():
+    """
+    Executes all MongoDB collection resets (refund_requests, checkpoints,
+    checkpoint_writes, and demo orders re-seed) concurrently in parallel
+    via asyncio.gather and returns immediately without invoking ElevenLabs TTS.
+    """
+    try:
+        db = get_async_database()
+        order_ops = [
+            ReplaceOne({"order_id": o["order_id"]}, o, upsert=True)
+            for o in DEFAULT_SEEDED_ORDERS
+        ]
+
+        async def reset_refund_requests():
+            await db[REFUND_REQUESTS_COLLECTION].delete_many({})
+
+        async def reset_checkpoints():
+            await db["checkpoints"].delete_many({})
+
+        async def reset_checkpoint_writes():
+            await db["checkpoint_writes"].delete_many({})
+
+        async def reseed_orders():
+            col = db[ORDERS_COLLECTION]
+            await col.delete_many({"order_id": {"$regex": "^ORD-", "$options": "i"}})
+            await col.bulk_write(order_ops)
+
+        await asyncio.gather(
+            reset_refund_requests(),
+            reset_checkpoints(),
+            reset_checkpoint_writes(),
+            reseed_orders()
+        )
+
+        logger.info("MongoDB Atlas collections and orders reset in parallel.")
+        return {
+            "success": True,
+            "message": "Demo session reset complete. All collections cleared and orders re-seeded."
+        }
+    except Exception as e:
+        logger.error(f"Reset endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

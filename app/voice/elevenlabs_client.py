@@ -49,7 +49,10 @@ def normalize_for_speech(text: str) -> str:
     s = re.sub(r"`([^`]+)`", r"\1", s)
     s = re.sub(r"#+\s*", "", s)
 
-    # 4. Strip technical brackets, bullets, and internal IDs
+    # 4. Articulate brand name clearly with space for ElevenLabs TTS
+    s = re.sub(r"\bAuditGate\b", "Audit Gate", s, flags=re.IGNORECASE)
+
+    # 5. Strip technical brackets, bullets, and internal IDs
     s = re.sub(r"\[.*?\]", "", s)
     s = re.sub(r"•\s*", "", s)
     s = re.sub(r"\b(?:req|thread)_[0-9a-zA-Z_]+\b", "", s)

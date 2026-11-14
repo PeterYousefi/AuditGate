@@ -703,7 +703,7 @@ def general_response_node(state: AgentState) -> Dict[str, Any]:
     # Case 1: Orders Inquiry
     if intent == "ORDERS_INQUIRY" or any(w in user_msg.lower() for w in ["what orders", "my orders", "show orders"]):
         orders = list_customer_orders(customer_id)
-        lines = ["Here are your recent orders with Verve Studio:"]
+        lines = ["Here are your recent orders with AuditGate:"]
         for o in orders:
             item_name = o.get("item", "Item")
             amt = o.get("amount", 0.0)
@@ -721,7 +721,7 @@ def general_response_node(state: AgentState) -> Dict[str, Any]:
         context_str = "\n".join(context_lines)
 
         system_instruction = (
-            "You are AuditGate Support Concierge (agent_01) for Verve Studio. "
+            "You are AuditGate Support Concierge (agent_01). "
             "You are polite, professional, and helpful. Answer customer inquiries concisely, clearly, and warmly. "
             "If the customer asks 'why?' or questions why their refund was routed to a specialist, "
             "explain warmly that because of the refund amount, higher-value requests undergo a brief verification "

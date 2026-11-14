@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-DEFAULT_PROACTIVE_GREETING = "Hi, welcome to Verve support. Please share your order number and purchase email, and let me know how I can help today."
+DEFAULT_PROACTIVE_GREETING = "Welcome to Audit Gate support. How can I help with your order today? Please share your order number and email address to get started."
+UI_PROACTIVE_GREETING = "Welcome to AuditGate support. How can I help with your order today? Please share your order number and email address to get started."
 
 
 class TTSRequest(BaseModel):
@@ -100,20 +101,22 @@ async def text_to_speech_endpoint(req: TTSRequest):
 async def proactive_voice_greeting_endpoint():
     """
     Returns the pre-generated spoken greeting for the 'Start Voice Support' CTA button:
-    'Hi, welcome to Verve support. Please share your order number and purchase email, and let me know how I can help today.'
+    'Welcome to Audit Gate support. How can I help with your order today? Please share your order number and email address to get started.'
     """
     try:
         audio_b64 = get_speech_audio_base64(DEFAULT_PROACTIVE_GREETING)
         return {
             "success": True,
-            "text": DEFAULT_PROACTIVE_GREETING,
+            "text": UI_PROACTIVE_GREETING,
+            "spoken_text": DEFAULT_PROACTIVE_GREETING,
             "audio_base64": audio_b64
         }
     except Exception as e:
         logger.error(f"Greeting synthesis error: {e}")
         return {
             "success": False,
-            "text": DEFAULT_PROACTIVE_GREETING,
+            "text": UI_PROACTIVE_GREETING,
+            "spoken_text": DEFAULT_PROACTIVE_GREETING,
             "audio_base64": None,
             "message": str(e)
         }

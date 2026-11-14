@@ -17,22 +17,21 @@
     <div class="h-screen w-screen flex flex-col overflow-hidden bg-[#FAFAFA]">
 
         <!-- ============================================================ -->
-        <!-- 1. TOP HEADER (shrink-0, 68px tall, 3-column grid layout)    -->
+        <!-- 1. TOP HEADER (shrink-0, h-16, single line, no wrapping)     -->
         <!-- ============================================================ -->
-        <header class="shrink-0 h-[68px] w-full bg-white border-b border-[#EAEAEA] grid grid-cols-[1fr_auto_1fr] items-center px-6 z-30">
-            <!-- Left: MongoDB Atlas Connected Pill -->
-            <div class="flex items-center gap-3">
-                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#E6F7F0] border border-[#B7EBD5] text-[13px] font-semibold text-[#047857]">
+        <header class="h-16 px-6 flex items-center justify-between border-b border-gray-200 bg-white z-30 shrink-0 w-full">
+            <!-- Left slot: Keep only the compact green status pill (Streams Active) -->
+            <div class="flex-1 flex items-center">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E6F7F0] border border-[#B7EBD5] text-[12px] font-semibold text-[#047857] whitespace-nowrap">
                     <span class="h-2 w-2 rounded-full bg-[#059669] animate-pulse"></span>
-                    <span>auditable_agent</span>
-                    <span class="text-xs text-[#059669]/70 font-mono">• Streams Active</span>
+                    <span>Streams Active</span>
                 </div>
             </div>
 
-            <!-- Center: Split-Gate Shield + AuditGate Wordmark -->
-            <div class="flex items-center justify-center gap-2.5">
-                <!-- Inline Custom SVG: Split-Gate Shield (32x32, #111827 bisected horizontally by #10B981 pulse bar) -->
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
+            <!-- Center slot: Truly Centered AuditGate geometric shield logo + bold title (whitespace-nowrap) -->
+            <div class="shrink-0 flex items-center justify-center gap-2.5 whitespace-nowrap">
+                <!-- Inline Custom SVG: Split-Gate Shield (28x28) -->
+                <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
                     <path d="M16 2L5 6.5V14.5H27V6.5L16 2Z" fill="#111827"/>
                     <rect x="3" y="15" width="26" height="2.5" rx="1.25" fill="#10B981"/>
                     <path d="M5 18.5V20.5C5 25.5 16 30 16 30C16 30 27 25.5 27 20.5V18.5H5Z" fill="#111827"/>
@@ -40,13 +39,13 @@
                 <span class="text-[20px] font-black tracking-tight text-[#111827]">Audit<span class="text-[#059669]">Gate</span></span>
             </div>
 
-            <!-- Right: Action Pills -->
-            <div class="flex items-center justify-end gap-2">
-                <!-- 1. Voice: ON/OFF (with animated equalizer bars & pulsing green dot during playback) -->
-                <button id="voice-toggle-btn" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition">
+            <!-- Right slot: All 5 pills whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full -->
+            <div class="flex-1 flex items-center justify-end gap-2">
+                <!-- 1. Voice: ON/OFF -->
+                <button id="voice-toggle-btn" class="whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
                     <span id="voice-dot" class="h-2 w-2 rounded-full bg-[#059669]"></span>
                     <span>Voice: <strong id="voice-status-text">ON</strong></span>
-                    <div id="audio-visualizer" class="hidden items-center gap-0.5 ml-1">
+                    <div id="audio-visualizer" class="hidden items-center gap-0.5 ml-0.5">
                         <span class="equalizer-bar"></span>
                         <span class="equalizer-bar"></span>
                         <span class="equalizer-bar"></span>
@@ -55,28 +54,28 @@
                     </div>
                 </button>
 
-                <!-- 2. Demo Orders Button -->
-                <button id="orders-modal-open-btn" title="View valid and invalid demo orders in MongoDB" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
-                    <svg class="w-4 h-4 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
-                    <span>Demo Orders</span>
+                <!-- 2. Orders Button -->
+                <button id="orders-modal-open-btn" title="View demo orders in MongoDB" class="whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
+                    <svg class="w-3.5 h-3.5 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    <span>Orders</span>
                 </button>
 
                 <!-- 3. Dedicated Approvals Drawer Button with Amber Badge -->
-                <button id="approvals-drawer-open-btn" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#FFFBEB] hover:bg-[#FEF3C7] border border-[#FDE68A] text-[#B45309] flex items-center gap-1.5 transition">
-                    <svg class="w-4 h-4 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <button id="approvals-drawer-open-btn" class="whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full bg-[#FFFBEB] hover:bg-[#FEF3C7] border border-[#FDE68A] text-[#B45309] flex items-center gap-1.5 transition">
+                    <svg class="w-3.5 h-3.5 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span>Approvals</span>
                     <span id="pending-count-pill" class="px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold bg-[#D97706] text-white">0</span>
                 </button>
 
-                <!-- 4. Audit & Analytics Drawer Button with Emerald Badge -->
-                <button id="audit-drawer-open-btn" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition">
-                    <svg class="w-4 h-4 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                    <span>Audit & Analytics</span>
+                <!-- 4. Audit Log Drawer Button with Emerald Badge -->
+                <button id="audit-drawer-open-btn" class="whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
+                    <svg class="w-3.5 h-3.5 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span>Audit Log</span>
                     <span id="audit-count-pill" class="px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold bg-[#E6F7F0] text-[#047857]">0</span>
                 </button>
 
                 <!-- 5. Reset Session Button -->
-                <button id="reset-session-btn" title="Reset demo session and clear queue" class="h-[38px] px-3 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
+                <button id="reset-session-btn" title="Reset demo session and clear queue" class="whitespace-nowrap h-9 px-3 text-[13px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
                     <svg class="w-3.5 h-3.5 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     <span>Reset</span>
                 </button>
@@ -144,7 +143,7 @@
                 </div>
 
                 <p class="text-[15px] leading-[1.5] text-[#111827]">
-                    Welcome to <strong>AuditGate</strong>. I am your customer support concierge. How can I help you with your order or return today?
+                    Welcome to <strong>AuditGate</strong> support. How can I help with your order today? Please share your order number and email address to get started.
                 </p>
 
                 <p class="text-[13.5px] text-[#4B5563] mt-2 leading-[1.5]">

@@ -1409,35 +1409,65 @@ async function runSchemaValidationTest() {
 }
 
 // -------------------------------------------------------------
-// Session Reset & Queue Clearing
+// Instant Session Reset (< 150ms optimistic UX)
 // -------------------------------------------------------------
-async function resetDemoSession() {
-    try {
-        const res = await fetch("/api/refund-requests?status=PENDING");
-        const data = await res.json();
-        const pending = data.requests || [];
-        for (const req of pending) {
-            await fetch(`/api/reject/${req.request_id}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ manager_notes: "Cleared on Session Reset" })
-            });
-        }
-    } catch (e) {
-        console.warn("Queue reset warning:", e);
+function resetDemoSession() {
+    // 1. Immediately pause active voice audio & stop equalizer visualizer
+    if (currentAudio) {
+        try {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        } catch (e) {}
+        currentAudio = null;
     }
+    stopAudioVisualizer();
 
-    currentThreadId = "thread_" + Math.random().toString(36).substring(2, 8).toUpperCase();
-
+    // 2. Immediately clear dynamic chat messages optimistically
     const messages = document.getElementById("chat-messages");
     if (messages) {
         messages.innerHTML = "";
     }
 
+    // 3. Immediately reset pending approvals badge to 0 optimistically
+    const pendingPill = document.getElementById("pending-count-pill");
+    if (pendingPill) {
+        pendingPill.textContent = "0";
+    }
+
+    // 4. Restore scroll to top so the welcome card is visible front and center
+    const chatContainer = document.getElementById("chat-container");
+    if (chatContainer) {
+        chatContainer.scrollTop = 0;
+    }
+
+    // 5. Clear input composer
+    const chatInputElem = document.getElementById("chat-input");
+    if (chatInputElem) {
+        chatInputElem.value = "";
+    }
+
+    // 6. Generate fresh thread ID
+    currentThreadId = "thread_" + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // 7. Show immediate toast feedback
     showToast("Session reset. Fresh thread initialized.");
-    fetchPendingRequests();
-    fetchAuditLogs();
-    fetchAnalyticsKPIs();
+
+    // 8. Fire parallel backend reset asynchronously (non-blocking, zero TTS delay)
+    fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+    .then(res => res.json())
+    .then(data => {
+        // Sync drawers and demo orders in the background once reset completes
+        fetchPendingRequests();
+        fetchAuditLogs();
+        fetchAnalyticsKPIs();
+        fetchAndRenderDemoOrders();
+    })
+    .catch(err => {
+        console.warn("Background reset error:", err);
+    });
 }
 
 // -------------------------------------------------------------

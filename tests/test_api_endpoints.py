@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database.orders_service import seed_default_orders_if_missing
+from app.database.policy_service import update_policy_limit
 
 client = TestClient(app)
 
@@ -36,6 +37,7 @@ def test_test_schema_enforcement_endpoint():
 def test_chat_auto_refund_endpoint():
     """Tests /api/chat with a verified numeric order and amount below policy threshold."""
     seed_default_orders_if_missing()
+    update_policy_limit(50.0, "agent_01")
     response = client.post(
         "/api/chat",
         json={"message": "Please refund $28 for order 1042. Email: alex@example.com.", "customer_id": "cust_test_api"}
@@ -48,13 +50,23 @@ def test_chat_auto_refund_endpoint():
 
 
 def test_voice_greeting_endpoint():
-    """Tests GET /api/voice/greeting returns ElevenLabs audio."""
+    """Tests GET /api/voice/greeting returns ElevenLabs audio and brand pronunciation."""
     response = client.get("/api/voice/greeting")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
     assert "welcome" in data["text"].lower()
+    assert "audit gate" in data["spoken_text"].lower()
     assert data["audio_base64"] is not None
+
+
+def test_reset_endpoint():
+    """Tests POST /api/reset resets collections concurrently in parallel."""
+    response = client.post("/api/reset")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert "reset complete" in data["message"].lower()
 
 
 def test_analytics_endpoint():

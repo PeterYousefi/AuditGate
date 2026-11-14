@@ -1,27 +1,108 @@
-/* Custom styles and animations for AuditGate Dark Theme */
+/* AuditGate - Shopify Polaris / Modern Flagship E-Commerce Aesthetic (Zero Dark Mode) */
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
-  }
+:root {
+  --canvas-bg: #F6F6F7;
+  --card-bg: #FFFFFF;
+  --hairline-border: #E1E3E5;
+  --border-subtle: #EDEEEF;
+  --text-primary: #202223;
+  --text-secondary: #6D7175;
+  --text-subdued: #8C9196;
+  --emerald-primary: #008060;
+  --emerald-hover: #006E52;
+  --emerald-pressed: #005E46;
+  --emerald-tint: #E3F1DF;
+  --emerald-surface: #EBF5F0;
+  --amber-primary: #B98900;
+  --amber-tint: #FFF5EA;
+  --coral-primary: #D82C0D;
+  --coral-tint: #FDEBE7;
+  --blue-primary: #0066CC;
+  --blue-tint: #EBF5FF;
+  --purple-primary: #7E22CE;
+  --purple-tint: #F3E8FF;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+  --card-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.08), 0 12px 24px rgba(0, 0, 0, 0.06);
 }
 
-.glow-active {
-  animation: pulseGlow 2s infinite ease-in-out;
+body {
+  background-color: var(--canvas-bg);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Sound wave animation */
+/* Polaris Card Styles */
+.polaris-card {
+  background: var(--card-bg);
+  border: 1px solid var(--hairline-border);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.polaris-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* Product/Order Preset Cards */
+.order-preset-card {
+  background: var(--card-bg);
+  border: 1px solid var(--hairline-border);
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.order-preset-card:hover {
+  border-color: var(--emerald-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 128, 96, 0.12);
+}
+
+/* Primary Shopify Action Button */
+.btn-emerald {
+  background-color: var(--emerald-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.btn-emerald:hover {
+  background-color: var(--emerald-hover);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.btn-emerald:active {
+  background-color: var(--emerald-pressed);
+}
+
+/* Secondary White Action Button */
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: var(--text-primary);
+  border: 1px solid var(--hairline-border);
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-secondary:hover {
+  background-color: #F6F6F7;
+  border-color: #C9CCCF;
+}
+
+/* Sound wave animation in Mint / Emerald */
 .sound-bar {
   display: inline-block;
   width: 3px;
   height: 12px;
-  background-color: #10b981;
+  background-color: var(--emerald-primary);
   border-radius: 2px;
   margin: 0 1px;
-  animation: soundWave 1.2s ease-in-out infinite;
+  animation: soundWaveLight 1.2s ease-in-out infinite;
 }
 
 .sound-bar:nth-child(1) { animation-delay: 0.1s; }
@@ -30,26 +111,41 @@
 .sound-bar:nth-child(4) { animation-delay: 0.4s; }
 .sound-bar:nth-child(5) { animation-delay: 0.15s; }
 
-@keyframes soundWave {
+@keyframes soundWaveLight {
   0%, 100% { height: 4px; }
-  50% { height: 18px; }
+  50% { height: 16px; }
 }
 
-/* Custom scrollbar */
+/* Modern Clean Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: #F1F2F3;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
-  border-radius: 3px;
+  background: #C9CCCF;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #8C9196;
+}
+
+/* Code & Hash styling */
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Smooth fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

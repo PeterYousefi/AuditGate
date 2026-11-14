@@ -24,6 +24,18 @@ def record_audit_log(
     """
     col = get_collection(AUDIT_LOGS_COLLECTION)
     timestamp = datetime.now(timezone.utc).isoformat()
+
+    meta = dict(metadata or {})
+    try:
+        from langsmith.run_helpers import get_current_run_tree
+        run = get_current_run_tree()
+        if run:
+            meta["langsmith_run_id"] = str(run.id)
+            meta["langsmith_trace_id"] = str(getattr(run, "trace_id", run.id))
+            meta["langsmith_url"] = run.get_url()
+    except Exception as e:
+        logger.debug(f"LangSmith run inspection notice: {e}")
+
     log_doc = {
         "timestamp": timestamp,
         "thread_id": str(thread_id),
@@ -32,7 +44,7 @@ def record_audit_log(
         "policy_limit_applied": float(policy_limit_applied),
         "decision": str(decision),
         "reason": str(reason),
-        "metadata": metadata or {}
+        "metadata": meta
     }
 
     result = col.insert_one(log_doc)

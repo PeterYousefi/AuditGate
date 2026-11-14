@@ -4,20 +4,51 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.database import get_collection
 from app.database.policy_service import update_policy_limit, get_live_policy
-from app.database.orders_service import seed_default_orders_if_missing, get_order_by_id
+from app.database.orders_service import seed_default_orders_if_missing, get_order_by_id, format_currency
+from app.voice.elevenlabs_client import normalize_for_speech
 
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def setup_environment():
-    """Ensure baseline policy limit of $50.00 and fresh demo orders for tests."""
+    """Ensure baseline policy limit of $50 and fresh numeric demo orders for tests."""
     update_policy_limit(50.0, "agent_01")
     seed_default_orders_if_missing()
     yield
     # Cleanup any leftover test requests
     col = get_collection("refund_requests")
     col.delete_many({"customer_id": {"$regex": "^test_"}})
+
+
+# =========================================================================
+# Unit Tests: format_currency & normalize_for_speech
+# =========================================================================
+
+def test_format_currency_helper():
+    """Verifies smart whole-dollar formatting: omit .00 when cents are zero."""
+    assert format_currency(28.0) == "$28"
+    assert format_currency(250.0) == "$250"
+    assert format_currency(50.0) == "$50"
+    assert format_currency(500.0) == "$500"
+    assert format_currency(28.5) == "$28.50"
+    assert format_currency(140.75) == "$140.75"
+
+
+def test_normalize_for_speech_helper():
+    """Verifies pre-TTS normalizer converts order digits, dollars, and strips markdown."""
+    # Order digits conversion: 1042 -> 1 0 4 2
+    res1 = normalize_for_speech("Your refund for order 1042 has been approved.")
+    assert "1 0 4 2" in res1
+
+    # Dollar conversion: $28 -> 28 dollars
+    res2 = normalize_for_speech("Refund of $28 processed.")
+    assert "28 dollars" in res2
+
+    # Markdown stripped
+    res3 = normalize_for_speech("Welcome to **AuditGate** [link](https://example.com)!")
+    assert "**" not in res3
+    assert "[" not in res3
 
 
 # =========================================================================
@@ -73,7 +104,7 @@ def test_case_b_missing_info_multi_turn():
 
     # Turn 1: User asks for refund with order number but NO email
     resp1 = client.post("/api/chat", json={
-        "message": "I want to return order #ORD-1042 for a $28.00 refund.",
+        "message": "I want to return order 1042 for a $28 refund.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -96,10 +127,10 @@ def test_case_b_missing_info_multi_turn():
     assert resp2.status_code == 200
     data2 = resp2.json()
 
-    # Should remember ORD-1042 from turn 1, verify in MongoDB, and auto-approve!
+    # Should remember 1042 from turn 1, verify in MongoDB, and auto-approve!
     assert data2["status"] == "AUTO_APPROVED"
-    assert "$28.00" in data2["response"]
-    assert "#ORD-1042" in data2["response"]
+    assert "$28" in data2["response"]
+    assert "1042" in data2["response"]
 
     # Verify audit log in MongoDB Atlas
     audit_col = get_collection("audit_logs")
@@ -115,12 +146,12 @@ def test_case_b_missing_info_multi_turn():
 def test_case_c_order_not_found():
     """
     Edge Case C1: Order does not exist.
-    Input: 'I want a refund for order #ORD-9999. Email: alex@example.com.'
+    Input: 'I want a refund for order 9999. Email: alex@example.com.'
     Must write VERIFICATION_FAILED to audit_logs and reply politely.
     """
     thread_id = f"test_notfound_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "I want a refund for order #ORD-9999. Email: alex@example.com.",
+        "message": "I want a refund for order 9999. Email: alex@example.com.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -140,11 +171,11 @@ def test_case_c_order_not_found():
 def test_case_c_email_mismatch():
     """
     Edge Case C2: Order exists but email does not match.
-    #ORD-2055 belongs to sarah@example.com, NOT alex@example.com.
+    Order 2055 belongs to sarah@example.com, NOT alex@example.com.
     """
     thread_id = f"test_mismatch_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "I want to refund order #ORD-2055. My email is alex@example.com.",
+        "message": "I want to refund order 2055. My email is alex@example.com.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -168,12 +199,12 @@ def test_case_c_email_mismatch():
 def test_case_d_already_refunded():
     """
     Edge Case D1: Order has status ALREADY_REFUNDED.
-    #ORD-3010 is already refunded.
+    Order 3010 is already refunded.
     Must reject politely and log REJECTED_DUPLICATE.
     """
     thread_id = f"test_dup_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "I want a refund for order #ORD-3010. Email: alex@example.com.",
+        "message": "I want a refund for order 3010. Email: alex@example.com.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -193,12 +224,12 @@ def test_case_d_already_refunded():
 def test_case_d_amount_exceeds_order_total():
     """
     Edge Case D2: Requested amount exceeds original order total.
-    #ORD-1042 was $28.00. Customer requests $500.00.
+    Order 1042 was $28. Customer requests $500.
     Must reject and log REJECTED_AMOUNT_MISMATCH.
     """
     thread_id = f"test_exceed_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "I want to refund $500.00 for order #ORD-1042. Email: alex@example.com.",
+        "message": "I want to refund $500 for order 1042. Email: alex@example.com.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -206,7 +237,7 @@ def test_case_d_amount_exceeds_order_total():
     data = resp.json()
 
     assert data["status"] == "REJECTED_AMOUNT_MISMATCH"
-    assert "exceeds the original order total of $28.00" in data["response"].lower()
+    assert "exceeds the original order total of $28" in data["response"].lower()
 
     # Verify REJECTED_AMOUNT_MISMATCH in audit_logs
     audit_col = get_collection("audit_logs")
@@ -221,13 +252,13 @@ def test_case_d_amount_exceeds_order_total():
 
 def test_case_e1_auto_approval():
     """
-    Edge Case E1: Verified Order + Amount <= Policy Limit ($28.00 <= $50.00).
-    Input: 'I want to return order #ORD-1042 for a $28.00 refund (alex@example.com).'
+    Edge Case E1: Verified Order + Amount <= Policy Limit ($28 <= $50).
+    Input: 'I want to return order 1042 for a $28 refund (alex@example.com).'
     Auto-approves, updates order status to REFUNDED, writes AUTO_APPROVED to audit_logs.
     """
     thread_id = f"test_auto_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "I want to return order #ORD-1042 for a $28.00 refund (alex@example.com).",
+        "message": "I want to return order 1042 for a $28 refund (alex@example.com).",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -236,12 +267,12 @@ def test_case_e1_auto_approval():
 
     assert data["status"] == "AUTO_APPROVED"
     assert data["interrupted"] is False
-    assert "$28.00" in data["response"]
-    assert "#ORD-1042" in data["response"]
+    assert "$28" in data["response"]
+    assert "1042" in data["response"]
     assert data["audio_base64"] is not None
 
     # Verify order updated to REFUNDED in MongoDB Atlas
-    order = get_order_by_id("ORD-1042")
+    order = get_order_by_id("1042")
     assert order["status"] == "REFUNDED"
 
     # Verify AUTO_APPROVED in audit_logs
@@ -258,15 +289,15 @@ def test_case_e1_auto_approval():
 
 def test_case_e2_hitl_escalation_and_approval():
     """
-    Edge Case E2: Verified Order + Amount > Policy Limit ($250.00 > $50.00).
-    Input: 'Please refund $250.00 for order #ORD-1089 blanket. Email: alex@example.com.'
+    Edge Case E2: Verified Order + Amount > Policy Limit ($250 > $50).
+    Input: 'Please refund $250 for order 1089 blanket. Email: alex@example.com.'
     Pauses LangGraph thread via interrupt, creates 1 pending document in refund_requests,
     and logs PENDING_APPROVAL.
     Then Manager approves: LangGraph thread resumes, logs HUMAN_APPROVED, order status updated.
     """
     thread_id = f"test_hitl_{uuid.uuid4().hex[:8]}"
     resp = client.post("/api/chat", json={
-        "message": "Please refund $250.00 for order #ORD-1089 blanket. Email: alex@example.com.",
+        "message": "Please refund $250 for order 1089 blanket. Email: alex@example.com.",
         "thread_id": thread_id,
         "customer_id": "test_customer"
     })
@@ -277,7 +308,7 @@ def test_case_e2_hitl_escalation_and_approval():
     assert data["interrupted"] is True
     request_id = data["request_id"]
     assert request_id is not None
-    assert "$250.00" in data["response"]
+    assert "$250" in data["response"]
 
     # Verify pending document in refund_requests
     req_col = get_collection("refund_requests")
@@ -285,7 +316,7 @@ def test_case_e2_hitl_escalation_and_approval():
     assert req_doc is not None
     assert req_doc["status"] == "PENDING"
     assert req_doc["email"] == "alex@example.com"
-    assert req_doc["order_id"] == "ORD-1089"
+    assert req_doc["order_id"] == "1089"
 
     # Manager approves via API
     approve_resp = client.post(f"/api/approve/{request_id}", json={
@@ -306,12 +337,12 @@ def test_case_e2_hitl_escalation_and_approval():
 
 
 # =========================================================================
-# Case 7: Orders List API Endpoint
+# Case 7: Orders List API Endpoint (Numeric IDs)
 # =========================================================================
 
 def test_orders_list_api():
     """
-    Verifies GET /api/orders returns all 4 demo orders with email and status.
+    Verifies GET /api/orders returns all 4 demo orders with numeric IDs and email.
     """
     resp = client.get("/api/orders")
     assert resp.status_code == 200
@@ -321,10 +352,10 @@ def test_orders_list_api():
     assert len(orders) >= 4
 
     order_ids = [o["order_id"] for o in orders]
-    assert "ORD-1042" in order_ids
-    assert "ORD-1089" in order_ids
-    assert "ORD-2055" in order_ids
-    assert "ORD-3010" in order_ids
+    assert "1042" in order_ids
+    assert "1089" in order_ids
+    assert "2055" in order_ids
+    assert "3010" in order_ids
 
 
 # =========================================================================

@@ -9,6 +9,7 @@ from google.genai import types
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.mongodb import MongoDBSaver
+from langsmith import traceable
 
 from app.config import settings
 from app.database.mongodb import get_mongodb_client
@@ -18,7 +19,13 @@ from app.database.orders_service import (
     get_order_by_id,
     get_order_by_id_and_email,
     normalize_order_id,
+    format_currency,
+    update_order_status,
     list_customer_orders
+)
+from app.database.vector_service import (
+    search_security_injection,
+    search_policy_precedents
 )
 from app.agent.state import AgentState
 from app.agent.tools import (
@@ -26,7 +33,7 @@ from app.agent.tools import (
     execute_auto_refund_tool,
     create_escalation_request_tool
 )
-from app.voice.elevenlabs_client import get_speech_audio_base64
+from app.voice.elevenlabs_client import get_speech_audio_base64, normalize_for_speech
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +46,7 @@ CANDIDATE_GEMINI_MODELS = [
 ]
 
 
+@traceable(name="gemini_generate_response")
 def generate_gemini_response(
     contents: Any,
     system_instruction: Optional[str] = None,
@@ -74,23 +82,29 @@ def generate_gemini_response(
     return None
 
 
+@traceable(name="extract_refund_intent_and_amount")
 def extract_refund_intent_and_amount(
     message: str,
     history: Optional[List[Dict[str, str]]] = None
 ) -> Dict[str, Any]:
     """
-    Extracts refund intent, order_id, email, amount, reason, and injection status
-    from user message and multi-turn conversation history.
-    Strictly separates order IDs from currency dollar amounts.
+    Extracts refund intent, strictly numeric order_id (e.g. '1042'), email, amount,
+    and checks prompt injection via regex + Atlas Vector Search.
     """
     msg_lower = message.strip().lower()
 
-    # 1. Edge Case A: Check for Prompt Injection / Adversarial Override
-    is_injection = any(p in msg_lower for p in [
+    # 1. Edge Case A: Check for Prompt Injection / Adversarial Override (Regex + Vector Search)
+    regex_injection = any(p in msg_lower for p in [
         "system override", "ignore rules", "ignore previous instructions",
         "ignore policy", "override mongodb", "bypass", "jailbreak",
-        "override policies", "override limits", "disregard rules"
+        "override policies", "override limits", "disregard rules", "admin mode"
     ])
+
+    vector_injection_match = None
+    if not regex_injection:
+        vector_injection_match = search_security_injection(message, score_threshold=0.91)
+
+    is_injection = regex_injection or (vector_injection_match is not None)
 
     # 2. Check for Orders Inquiry
     is_orders_inquiry = any(p in msg_lower for p in [
@@ -107,29 +121,31 @@ def extract_refund_intent_and_amount(
             "is_prompt_injection": False
         }
 
-    # 3. Order ID extraction: match patterns like #ORD-1042, ORD-1089, ORD-9999, order 12345
-    order_id = None
-    order_match = re.search(r"#?\b(ORD-?\d+)\b", message, re.IGNORECASE)
-    if order_match:
-        order_id = normalize_order_id(order_match.group(1))
-    else:
-        generic_match = re.search(r"\b(?:order|order\s*number|order\s*id)\s*#?\s*([A-Za-z0-9\-]+)", message, re.IGNORECASE)
-        if generic_match:
-            order_id = normalize_order_id(generic_match.group(1))
-        elif re.match(r"^#?[0-9]{4,6}$", message.strip()):
-            # User simply answered with digits (e.g. 1042 or #1042)
-            order_id = normalize_order_id(message.strip().lstrip("#"))
+    # Helper for robust numeric-only order ID extraction (avoids capturing $250 or $500 amounts)
+    def _extract_order(text: str) -> Optional[str]:
+        if not text:
+            return None
+        explicit = re.search(r"(?:order(?:\s*(?:id|number|#))?[:\s]*#?|#|ORD-)(\d{3,6})\b", text, re.IGNORECASE)
+        if explicit:
+            return normalize_order_id(explicit.group(1))
+        general = re.search(r"(?<!\$)(?<!\$\s)\b(\d{4})\b", text)
+        if general:
+            return normalize_order_id(general.group(1))
+        return None
+
+    # 3. Numeric-Only Order ID extraction
+    order_id = _extract_order(message)
 
     # If order_id not in current message, look back in conversation history
     if not order_id and history:
         for prev in reversed(history[-6:]):
             prev_content = prev.get("content", "")
-            prev_m = re.search(r"#?\b(ORD-?\d+)\b", prev_content, re.IGNORECASE)
-            if prev_m:
-                order_id = normalize_order_id(prev_m.group(1))
+            found_prev = _extract_order(prev_content)
+            if found_prev:
+                order_id = found_prev
                 break
 
-    # 4. Email Extraction: match standard email address format
+    # 4. Email Extraction
     email = None
     email_match = re.search(r"\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", message)
     if email_match:
@@ -149,21 +165,18 @@ def extract_refund_intent_and_amount(
         "refund", "money back", "return", "reimburse", "chargeback", "credit"
     ])
 
-    # Check if prior history was asking for refund details (Edge Case B multi-turn context)
     was_pending_refund_query = False
     if history:
         for prev in reversed(history[-3:]):
             prev_text = prev.get("content", "").lower()
             if prev.get("role") == "assistant" and any(k in prev_text for k in [
-                "order number", "email address", "refund", "amount you'd like refunded", "specialist"
+                "order number", "email address", "refund", "amount", "specialist"
             ]):
                 was_pending_refund_query = True
                 break
 
-    # 6. Strict Currency Amount Extraction (NEVER bare digits like order numbers)
+    # 6. Currency Amount Extraction
     amount = None
-
-    # Pattern A: Dollar-prefixed value ($28, $28.00, $ 250)
     dollar_match = re.search(r"\$\s*([0-9]+(?:\.[0-9]{1,2})?)", message)
     if dollar_match:
         try:
@@ -173,7 +186,6 @@ def extract_refund_intent_and_amount(
         except ValueError:
             pass
 
-    # Pattern B: Word currency (28 dollars, 250 usd, 50 bucks)
     if amount is None:
         word_match = re.search(r"\b([0-9]+(?:\.[0-9]{1,2})?)\s*(?:dollars?|bucks?|usd)\b", message, re.IGNORECASE)
         if word_match:
@@ -184,7 +196,6 @@ def extract_refund_intent_and_amount(
             except ValueError:
                 pass
 
-    # Check if amount was provided in prior history
     if amount is None and history:
         for prev in reversed(history[-4:]):
             prev_content = prev.get("content", "")
@@ -196,7 +207,7 @@ def extract_refund_intent_and_amount(
                 except ValueError:
                     pass
 
-    # 7. Conversational follow-ups (e.g. "why?", "how come?", "who reviews it?", "thanks")
+    # 7. Conversational follow-ups
     conversational_phrases = [
         "why", "why?", "why is that", "why review", "how come",
         "how long", "what now", "who reviews", "who is reviewing",
@@ -207,8 +218,7 @@ def extract_refund_intent_and_amount(
         for p in conversational_phrases
     )
 
-    # If conversational and not providing new order/email data
-    if is_conversational_followup and not is_injection and not (email_match or order_match):
+    if is_conversational_followup and not is_injection and not (email or order_id):
         return {
             "intent": "CONVERSATIONAL",
             "order_id": order_id,
@@ -218,7 +228,6 @@ def extract_refund_intent_and_amount(
             "is_prompt_injection": False
         }
 
-    # 8. Return parsed intent
     is_in_refund_flow = is_refund_keyword or was_pending_refund_query or is_injection or (order_id is not None and email is not None)
 
     return {
@@ -231,6 +240,7 @@ def extract_refund_intent_and_amount(
     }
 
 
+@traceable(name="analyze_request_node")
 def analyze_request_node(state: AgentState) -> Dict[str, Any]:
     """
     Node 1: Evaluates user message against strict multi-step governance verification gate
@@ -248,11 +258,11 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
     reason = extracted.get("reason", user_msg)
     is_injection = extracted.get("is_prompt_injection", False)
 
-    # Query MongoDB Atlas LIVE policy (NEVER HARDCODED)
     live_limit = fetch_live_policy_limit("agent_01")
 
     # =========================================================================
     # Edge Case A — Prompt Injection / Manipulation Attempt
+    # Block immediately, write SECURITY_BLOCK to audit_logs, polite response
     # =========================================================================
     if is_injection:
         logger.warning(f"Prompt injection detected on thread '{thread_id}'. Engaging SECURITY_BLOCK guardrail.")
@@ -300,7 +310,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
     # Never create a pending refund request without verified order_id AND email.
     # =========================================================================
     if not order_id and not email:
-        missing_reply = "I'd be glad to help with your refund! Please provide your order number (e.g., #ORD-1042) and the email address associated with your purchase."
+        missing_reply = "I'd be glad to help with your refund! Please provide your order number (e.g., order 1042) and the email address associated with your purchase."
         audio_b64 = get_speech_audio_base64(missing_reply)
         return {
             "intent": "AWAITING_INFO",
@@ -315,7 +325,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
             "audio_base64": audio_b64
         }
     elif not email:
-        missing_reply = f"To look up order #{order_id}, could you please provide the email address associated with your order?"
+        missing_reply = f"To look up order {order_id}, could you please provide the email address associated with your order?"
         audio_b64 = get_speech_audio_base64(missing_reply)
         return {
             "intent": "AWAITING_INFO",
@@ -330,7 +340,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
             "audio_base64": audio_b64
         }
     elif not order_id:
-        missing_reply = f"Thanks for providing your email ({email}). Could you please share your order number (e.g., #ORD-1042) so I can pull up your details?"
+        missing_reply = f"Thanks for providing your email ({email}). Could you please share your order number (e.g., order 1042) so I can pull up your details?"
         audio_b64 = get_speech_audio_base64(missing_reply)
         return {
             "intent": "AWAITING_INFO",
@@ -347,18 +357,17 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
 
     # =========================================================================
     # Edge Case C — Order Does Not Exist or Email Doesn't Match
-    # Query MongoDB Atlas 'orders' collection for { order_id, email }
     # =========================================================================
     order_doc = get_order_by_id_and_email(order_id, email)
     if not order_doc:
-        logger.warning(f"Verification failed: order #{order_id} not found for email '{email}'.")
+        logger.warning(f"Verification failed: order {order_id} not found for email '{email}'.")
         record_audit_log(
             thread_id=thread_id,
             agent_id="agent_01",
             user_requested_amount=amount or 0.0,
             policy_limit_applied=live_limit,
             decision="VERIFICATION_FAILED",
-            reason=f"Verification failed: no matching order found for order #{order_id} and email '{email}'",
+            reason=f"Verification failed: no matching order found for order {order_id} and email '{email}'",
             metadata={"order_id": order_id, "email": email}
         )
         failed_reply = "I couldn't find an order matching that order number and email address. Please double-check your details and try again."
@@ -380,17 +389,17 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
     # Edge Case D — Already Refunded or Amount Exceeds Order Total
     # =========================================================================
     if order_doc.get("status") == "ALREADY_REFUNDED":
-        logger.warning(f"Duplicate refund rejected: order #{order_id} already refunded.")
+        logger.warning(f"Duplicate refund rejected: order {order_id} already refunded.")
         record_audit_log(
             thread_id=thread_id,
             agent_id="agent_01",
             user_requested_amount=amount or float(order_doc.get("amount", 0.0)),
             policy_limit_applied=live_limit,
             decision="REJECTED_DUPLICATE",
-            reason=f"Refund rejected: order #{order_id} has already been refunded.",
+            reason=f"Refund rejected: order {order_id} has already been refunded.",
             metadata={"order_id": order_id, "email": email, "order_status": order_doc.get("status")}
         )
-        dup_reply = f"Order #{order_id} has already been refunded."
+        dup_reply = f"Order {order_id} has already been refunded."
         audio_b64 = get_speech_audio_base64(dup_reply)
         return {
             "intent": "REJECTED_DUPLICATE",
@@ -398,7 +407,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
             "requested_amount": amount or float(order_doc.get("amount", 0.0)),
             "order_id": order_id,
             "email": email,
-            "reason": f"Order #{order_id} already refunded",
+            "reason": f"Order {order_id} already refunded",
             "is_prompt_injection": False,
             "policy_limit_applied": live_limit,
             "final_response": dup_reply,
@@ -408,20 +417,20 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
     # If amount was not explicitly provided by the user, default to original order total
     if amount is None:
         amount = float(order_doc.get("amount", 0.0))
-        logger.info(f"Resolved order #{order_id} amount from database: ${amount:.2f}")
+        logger.info(f"Resolved order {order_id} amount from database: {format_currency(amount)}")
 
     if amount > float(order_doc.get("amount", 0.0)):
-        logger.warning(f"Amount mismatch rejected: requested ${amount:.2f} > order total ${float(order_doc['amount']):.2f}")
+        logger.warning(f"Amount mismatch rejected: requested {format_currency(amount)} > order total {format_currency(order_doc['amount'])}")
         record_audit_log(
             thread_id=thread_id,
             agent_id="agent_01",
             user_requested_amount=amount,
             policy_limit_applied=live_limit,
             decision="REJECTED_AMOUNT_MISMATCH",
-            reason=f"Refund rejected: requested amount ${amount:.2f} exceeds original order total ${float(order_doc['amount']):.2f} for order #{order_id}.",
+            reason=f"Refund rejected: requested amount {format_currency(amount)} exceeds original order total {format_currency(order_doc['amount'])} for order {order_id}.",
             metadata={"order_id": order_id, "email": email, "order_total": float(order_doc["amount"])}
         )
-        mismatch_reply = f"The requested amount of ${amount:.2f} exceeds the original order total of ${float(order_doc['amount']):.2f}."
+        mismatch_reply = f"The requested amount of {format_currency(amount)} exceeds the original order total of {format_currency(order_doc['amount'])}."
         audio_b64 = get_speech_audio_base64(mismatch_reply)
         return {
             "intent": "REJECTED_AMOUNT_MISMATCH",
@@ -429,7 +438,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
             "requested_amount": amount,
             "order_id": order_id,
             "email": email,
-            "reason": f"Requested amount exceeds original order total of ${float(order_doc['amount']):.2f}",
+            "reason": f"Requested amount exceeds original order total of {format_currency(order_doc['amount'])}",
             "is_prompt_injection": False,
             "policy_limit_applied": live_limit,
             "final_response": mismatch_reply,
@@ -445,7 +454,7 @@ def analyze_request_node(state: AgentState) -> Dict[str, Any]:
         "requested_amount": amount,
         "order_id": order_id,
         "email": email,
-        "reason": reason or f"Refund request for order #{order_id}",
+        "reason": reason or f"Refund request for order {order_id}",
         "is_prompt_injection": False,
         "policy_limit_applied": live_limit
     }
@@ -467,36 +476,17 @@ def router_decision(state: AgentState) -> str:
     return "general_response"
 
 
-def execute_auto_refund_node(state: AgentState) -> Dict[str, Any]:
+# =============================================================================
+# NODE SEPARATION: Dedicated human_gate_node (interrupt only, zero side effects)
+# =============================================================================
+
+@traceable(name="human_gate_node")
+def human_gate_node(state: AgentState) -> Dict[str, Any]:
     """
-    Node 2: Executes automated refund when amount <= max_auto_refund.
-    Updates order status in MongoDB 'orders' and records immutable audit log.
-    """
-    thread_id = state["thread_id"]
-    amount = state["requested_amount"]
-    order_id = state.get("order_id")
-    reason = state.get("reason", "Customer requested refund")
-    limit = state.get("policy_limit_applied", 50.0)
-
-    result = execute_auto_refund_tool(thread_id, amount, reason, order_id=order_id)
-
-    order_str = f" for order #{order_id}" if order_id else ""
-    response_text = f"Your refund of ${amount:.2f}{order_str} has been processed. You'll see it back on your card shortly."
-
-    # Generate ElevenLabs audio
-    audio_b64 = get_speech_audio_base64(response_text)
-
-    return {
-        "status": "AUTO_APPROVED",
-        "final_response": response_text,
-        "audio_base64": audio_b64
-    }
-
-
-def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
-    """
-    Node 3: Pauses execution using LangGraph HITL interrupt
-    and inserts pending document into MongoDB Atlas 'refund_requests'.
+    Node: Pauses execution via LangGraph HITL interrupt and inserts pending document
+    into MongoDB Atlas 'refund_requests'.
+    STRICT SAFETY: Does NOT mutate order status or write final financial audit log here!
+    Irreversible writes reside in downstream execute_refund_node.
     """
     thread_id = state["thread_id"]
     customer_id = state.get("customer_id", "customer_default")
@@ -506,23 +496,26 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
     reason = state.get("reason", "Customer requested refund")
     limit = state.get("policy_limit_applied", 50.0)
 
-    order_str = f" for order #{order_id}" if order_id else ""
-    response_text = f"Because of the refund amount, I've routed your ${amount:.2f} request{order_str} to a specialist for quick review. I'll update you right here as soon as it's approved."
-    rule_desc = f"Exceeds ${limit:.2f} live policy threshold"
+    # Search policy precedents for compliance citation
+    precedents = search_policy_precedents(f"Refund request of {format_currency(amount)} exceeding limit", limit=1)
+    citation = precedents[0].get("citation") if precedents else "AuditGate Governance Spec §4.2 (High-Value Controls)"
 
-    # Create request in MongoDB Atlas with internal audit context
+    order_str = f" for order {order_id}" if order_id else ""
+    # Persona-Execution Separation: polite customer message with zero internal threshold leaks
+    response_text = f"Because of the refund amount, I've routed your {format_currency(amount)} request{order_str} to a specialist for quick review. I'll update you right here as soon as it's approved."
+    rule_desc = f"Exceeds {format_currency(limit)} live policy threshold"
+
+    # Create pending escalation request in MongoDB Atlas
     req_doc = create_escalation_request_tool(
         thread_id=thread_id,
         customer_id=customer_id,
         amount=amount,
-        reason=f"[{rule_desc}] {reason}",
+        reason=f"[{rule_desc}] {reason}. Precedent: {citation}",
         order_id=order_id,
         email=email,
         is_injection=False
     )
     request_id = req_doc["request_id"]
-
-    # Generate ElevenLabs audio for customer response
     audio_b64 = get_speech_audio_base64(response_text)
 
     # PAUSE graph execution via LangGraph interrupt with manager audit metadata
@@ -537,55 +530,160 @@ def escalate_hitl_node(state: AgentState) -> Dict[str, Any]:
         "response_text": response_text,
         "audio_base64": audio_b64,
         "triggered_rule": rule_desc,
+        "precedent_citation": citation,
         "is_prompt_injection": False
     })
 
     # When resumed via Command(resume={...}):
-    decision_type = human_decision.get("decision", "HUMAN_APPROVED") if isinstance(human_decision, dict) else "HUMAN_APPROVED"
-    approved = decision_type == "HUMAN_APPROVED" or human_decision.get("approved", True)
-
-    if approved:
-        final_text = f"Good news! Your ${amount:.2f} refund has been approved and processed."
-        status_val = "HUMAN_APPROVED"
-        audit_decision = "HUMAN_APPROVED"
+    if isinstance(human_decision, dict):
+        decision_type = human_decision.get("decision", "HUMAN_APPROVED")
+        if "approved" in human_decision:
+            approved = bool(human_decision["approved"])
+        else:
+            approved = (decision_type == "HUMAN_APPROVED")
+        decided_by = human_decision.get("decided_by", "manager")
     else:
-        final_text = "Thank you for waiting. After review, your refund request was declined."
-        status_val = "HUMAN_REJECTED"
-        audit_decision = "HUMAN_REJECTED"
+        decision_type = "HUMAN_APPROVED"
+        approved = True
+        decided_by = "manager"
 
-    # Record final audit log in MongoDB Atlas
+    return {
+        "request_id": request_id,
+        "status": "RESUMED_FROM_HITL",
+        "approved": approved,
+        "manager_decision": decision_type,
+        "decided_by": decided_by,
+        "precedent_citation": citation
+    }
+
+
+def human_gate_router(state: AgentState) -> str:
+    """
+    Routes the resumed HITL execution to execute_refund or decline_refund.
+    """
+    if state.get("approved", True):
+        return "execute_refund"
+    return "decline_refund"
+
+
+# =============================================================================
+# NODE SEPARATION: Dedicated execute_refund_node (single point of DB mutation)
+# =============================================================================
+
+@traceable(name="execute_refund_node")
+def execute_refund_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Node: Single point of irreversible execution for refunds.
+    Mutates order status in MongoDB Atlas 'orders' and logs permanent audit log.
+    Guarantees no duplicate writes upon LangGraph resumption.
+    """
+    thread_id = state["thread_id"]
+    amount = state["requested_amount"]
+    order_id = state.get("order_id")
+    email = state.get("email")
+    reason = state.get("reason", "Customer requested refund")
+    limit = state.get("policy_limit_applied", 50.0)
+    request_id = state.get("request_id")
+    manager_decision = state.get("manager_decision")
+    precedent_citation = state.get("precedent_citation")
+
+    # 1. Mutate order status to REFUNDED in MongoDB Atlas 'orders'
+    if order_id:
+        update_order_status(order_id, "REFUNDED")
+
+    # 2. Determine if this was an autonomous execution or human manager approval
+    order_str = f" for order {order_id}" if order_id else ""
+
+    if manager_decision == "HUMAN_APPROVED":
+        status_val = "HUMAN_APPROVED"
+        final_text = f"Good news! Your {format_currency(amount)} refund has been approved and processed."
+        record_audit_log(
+            thread_id=thread_id,
+            agent_id="agent_01",
+            user_requested_amount=amount,
+            policy_limit_applied=limit,
+            decision="HUMAN_APPROVED",
+            reason=f"Human manager decision processed: HUMAN_APPROVED. Request ID: {request_id}. Precedent: {precedent_citation or 'N/A'}",
+            metadata={
+                "request_id": request_id,
+                "order_id": order_id,
+                "email": email,
+                "decided_by": state.get("decided_by", "manager"),
+                "precedent_citation": precedent_citation
+            }
+        )
+    else:
+        status_val = "AUTO_APPROVED"
+        final_text = f"Your refund of {format_currency(amount)}{order_str} has been processed. You'll see it back on your card shortly."
+        record_audit_log(
+            thread_id=thread_id,
+            agent_id="agent_01",
+            user_requested_amount=amount,
+            policy_limit_applied=limit,
+            decision="AUTO_APPROVED",
+            reason=f"Auto-approved by policy: amount ({format_currency(amount)}) <= live limit ({format_currency(limit)}). Justification: {reason}",
+            metadata={
+                "execution_method": "autonomous_tool",
+                "currency": "USD",
+                "order_id": order_id,
+                "email": email
+            }
+        )
+
+    # Generate ElevenLabs audio with speech normalizer
+    audio_b64 = get_speech_audio_base64(final_text)
+
+    return {
+        "status": status_val,
+        "final_response": final_text,
+        "audio_base64": audio_b64
+    }
+
+
+@traceable(name="decline_refund_node")
+def decline_refund_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Node: Handles human manager decline path.
+    Logs permanent HUMAN_REJECTED audit log and returns polite rejection.
+    """
+    thread_id = state["thread_id"]
+    amount = state["requested_amount"]
+    order_id = state.get("order_id")
+    email = state.get("email")
+    limit = state.get("policy_limit_applied", 50.0)
+    request_id = state.get("request_id")
+
+    final_text = "Thank you for waiting. After review, your refund request was declined."
     record_audit_log(
         thread_id=thread_id,
         agent_id="agent_01",
-        user_requested_amount=amount,
+        user_requested_amount=amount or 0.0,
         policy_limit_applied=limit,
-        decision=audit_decision,
-        reason=f"Human manager decision processed: {decision_type}. Triggered rule: {rule_desc}. Request ID: {request_id}",
+        decision="HUMAN_REJECTED",
+        reason=f"Human manager decision processed: HUMAN_REJECTED. Request ID: {request_id}",
         metadata={
             "request_id": request_id,
             "order_id": order_id,
             "email": email,
-            "triggered_rule": rule_desc,
-            "decided_by": human_decision.get("decided_by", "manager")
+            "decided_by": state.get("decided_by", "manager")
         }
     )
 
-    final_audio = get_speech_audio_base64(final_text)
+    audio_b64 = get_speech_audio_base64(final_text)
 
     return {
-        "request_id": request_id,
-        "status": status_val,
+        "status": "HUMAN_REJECTED",
         "final_response": final_text,
-        "audio_base64": final_audio
+        "audio_base64": audio_b64
     }
 
 
+@traceable(name="general_response_node")
 def general_response_node(state: AgentState) -> Dict[str, Any]:
     """
-    Node 4: Handles conversational follow-ups, incomplete requests, security blocks,
+    Node: Handles conversational follow-ups, incomplete requests, security blocks,
     and order inquiries. Maintains multi-turn context without leaking internal policy thresholds.
     """
-    # If a final_response was already prepared (e.g. from security block or validation gate)
     if state.get("final_response"):
         reply = state["final_response"]
         audio_b64 = state.get("audio_base64")
@@ -610,7 +708,7 @@ def general_response_node(state: AgentState) -> Dict[str, Any]:
             item_name = o.get("item", "Item")
             amt = o.get("amount", 0.0)
             status = o.get("status", "DELIVERED").title()
-            lines.append(f"• #{o['order_id']}: {item_name} (${amt:.2f}) — {status}")
+            lines.append(f"• Order {o['order_id']}: {item_name} ({format_currency(amt)}) — {status}")
         lines.append("\nLet me know if you would like to initiate a return or refund for any of these!")
         reply = "\n".join(lines)
 
@@ -668,13 +766,15 @@ def general_response_node(state: AgentState) -> Dict[str, Any]:
 
 def build_auditgate_graph(checkpointer: Optional[Any] = None):
     """
-    Constructs and compiles the LangGraph StateGraph with MongoDB Atlas checkpointer.
+    Constructs and compiles the LangGraph StateGraph with MongoDB Atlas checkpointer (ttl=86400).
+    Guarantees strict separation between human_gate (interrupt) and execute_refund (mutation).
     """
     workflow = StateGraph(AgentState)
 
     workflow.add_node("analyze_request", analyze_request_node)
-    workflow.add_node("execute_auto_refund", execute_auto_refund_node)
-    workflow.add_node("escalate_hitl", escalate_hitl_node)
+    workflow.add_node("human_gate", human_gate_node)
+    workflow.add_node("execute_refund", execute_refund_node)
+    workflow.add_node("decline_refund", decline_refund_node)
     workflow.add_node("general_response", general_response_node)
 
     workflow.add_edge(START, "analyze_request")
@@ -683,18 +783,28 @@ def build_auditgate_graph(checkpointer: Optional[Any] = None):
         "analyze_request",
         router_decision,
         {
-            "auto_refund": "execute_auto_refund",
-            "escalate_to_human": "escalate_hitl",
+            "auto_refund": "execute_refund",
+            "escalate_to_human": "human_gate",
             "general_response": "general_response"
         }
     )
 
-    workflow.add_edge("execute_auto_refund", END)
-    workflow.add_edge("escalate_hitl", END)
+    workflow.add_conditional_edges(
+        "human_gate",
+        human_gate_router,
+        {
+            "execute_refund": "execute_refund",
+            "decline_refund": "decline_refund"
+        }
+    )
+
+    workflow.add_edge("execute_refund", END)
+    workflow.add_edge("decline_refund", END)
     workflow.add_edge("general_response", END)
 
     if checkpointer is None:
         client = get_mongodb_client()
-        checkpointer = MongoDBSaver(client, db_name=settings.MONGODB_DB_NAME)
+        # Enforce 24-hour TTL (86400 seconds) on LangGraph checkpoints in MongoDB Atlas
+        checkpointer = MongoDBSaver(client, db_name=settings.MONGODB_DB_NAME, ttl=86400)
 
     return workflow.compile(checkpointer=checkpointer)

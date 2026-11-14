@@ -1,11 +1,17 @@
+import json
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.database import get_collection
+from app.database.mongodb import get_async_mongodb_client
 from app.database.policy_service import get_live_policy, update_policy_limit
 from app.database.orders_service import list_all_demo_orders
+from app.database.analytics_service import compute_audit_analytics
 from app.agent.hitl_manager import resume_interrupted_thread
 
 logger = logging.getLogger(__name__)
@@ -140,3 +146,47 @@ async def reject_refund_endpoint(request_id: str, body: Optional[ManagerDecision
     except Exception as e:
         logger.error(f"Failed to reject request {request_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/analytics")
+async def get_analytics_endpoint():
+    """
+    Returns live aggregated KPIs on audit_logs via MongoDB $facet pipeline.
+    """
+    try:
+        analytics = compute_audit_analytics()
+        return {
+            "success": True,
+            "analytics": analytics,
+            **analytics
+        }
+    except Exception as e:
+        logger.error(f"Failed to compute audit analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/stream")
+async def sse_event_stream():
+    """
+    Streams live Change Stream events from MongoDB Atlas via Server-Sent Events (SSE).
+    """
+    async def event_generator():
+        client = get_async_mongodb_client()
+        db = client[settings.MONGODB_DB_NAME]
+        col = db[REFUND_REQUESTS_COLLECTION]
+        pipeline = [{"$match": {"operationType": {"$in": ["insert", "update", "replace"]}}}]
+        try:
+            async with col.watch(pipeline=pipeline, full_document="updateLookup") as stream:
+                async for change in stream:
+                    doc = change.get("fullDocument") or {}
+                    doc["_id"] = str(doc.get("_id", ""))
+                    payload = {
+                        "type": "refund_request_change",
+                        "operation": change.get("operationType"),
+                        "document": doc
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+        except Exception as e:
+            logger.debug(f"SSE stream ended or disconnected: {e}")
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

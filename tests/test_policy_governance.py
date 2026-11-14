@@ -5,6 +5,7 @@ from app.database.policy_service import (
     get_live_policy,
     update_policy_limit
 )
+from app.database.orders_service import seed_default_orders_if_missing
 from app.agent.tools import fetch_live_policy_limit
 from app.agent.graph import build_auditgate_graph
 from app.agent.hitl_manager import resume_interrupted_thread
@@ -34,15 +35,16 @@ def test_hitl_workflow_and_checkpoint_resumption():
     Verifies that refund requests exceeding the policy threshold pause via LangGraph interrupt,
     save checkpoints to MongoDB Atlas, and resume upon manager decision.
     """
+    seed_default_orders_if_missing()
     graph = build_auditgate_graph()
     thread_id = f"test_thread_{uuid.uuid4().hex[:6]}"
     config = {"configurable": {"thread_id": thread_id}}
 
-    # Invoke with $250 refund on verified order #ORD-1089 (exceeds $50 limit)
+    # Invoke with $250 refund on verified order 1089 (exceeds $50 limit)
     state_input = {
         "thread_id": thread_id,
         "customer_id": "test_cust_hitl",
-        "user_message": "Please refund $250.00 for order #ORD-1089. Email: alex@example.com.",
+        "user_message": "Please refund $250 for order 1089. Email: alex@example.com.",
         "intent": "",
         "requested_amount": None,
         "order_id": None,

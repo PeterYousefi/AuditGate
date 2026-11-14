@@ -22,3 +22,7 @@ class AgentState(TypedDict):
     final_response: Optional[str]
     audio_base64: Optional[str]
     history: List[Dict[str, str]]
+    manager_decision: Optional[str]
+    approved: Optional[bool]
+    decided_by: Optional[str]
+    precedent_citation: Optional[str]

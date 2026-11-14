@@ -17,28 +17,32 @@
     <div class="h-screen w-screen flex flex-col overflow-hidden bg-[#FAFAFA]">
 
         <!-- ============================================================ -->
-        <!-- 1. TOP HEADER (shrink-0, 68px tall, clean white #FFFFFF)     -->
+        <!-- 1. TOP HEADER (shrink-0, 68px tall, 3-column grid layout)    -->
         <!-- ============================================================ -->
-        <header class="shrink-0 h-[68px] w-full bg-white border-b border-[#EAEAEA] flex items-center justify-between px-6 z-30">
-            <!-- Left: Bold AuditGate Logo + MongoDB Connected Pill -->
-            <div class="flex items-center gap-3.5">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#059669] via-[#10B981] to-[#34D399] flex items-center justify-center text-white shadow-sm ring-1 ring-emerald-500/20">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                    </div>
-                    <span class="text-[20px] font-black tracking-tight text-[#111827]">Audit<span class="text-[#059669]">Gate</span></span>
-                </div>
-
-                <!-- Crisp Green MongoDB Connected Pill (14px font, #E6F7F0 bg, #047857 text) -->
-                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#E6F7F0] border border-[#B7EBD5] text-[13.5px] font-semibold text-[#047857]">
+        <header class="shrink-0 h-[68px] w-full bg-white border-b border-[#EAEAEA] grid grid-cols-[1fr_auto_1fr] items-center px-6 z-30">
+            <!-- Left: MongoDB Atlas Connected Pill -->
+            <div class="flex items-center gap-3">
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#E6F7F0] border border-[#B7EBD5] text-[13px] font-semibold text-[#047857]">
                     <span class="h-2 w-2 rounded-full bg-[#059669] animate-pulse"></span>
-                    <span>MongoDB Connected</span>
+                    <span>auditable_agent</span>
+                    <span class="text-xs text-[#059669]/70 font-mono">• Streams Active</span>
                 </div>
             </div>
 
-            <!-- Right: Top Nav Buttons (14px medium, 38px tall) -->
-            <div class="flex items-center gap-2">
-                <!-- 1. Voice: ON (with animated equalizer bars & pulsing green dot during playback) -->
+            <!-- Center: Split-Gate Shield + AuditGate Wordmark -->
+            <div class="flex items-center justify-center gap-2.5">
+                <!-- Inline Custom SVG: Split-Gate Shield (32x32, #111827 bisected horizontally by #10B981 pulse bar) -->
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="shrink-0">
+                    <path d="M16 2L5 6.5V14.5H27V6.5L16 2Z" fill="#111827"/>
+                    <rect x="3" y="15" width="26" height="2.5" rx="1.25" fill="#10B981"/>
+                    <path d="M5 18.5V20.5C5 25.5 16 30 16 30C16 30 27 25.5 27 20.5V18.5H5Z" fill="#111827"/>
+                </svg>
+                <span class="text-[20px] font-black tracking-tight text-[#111827]">Audit<span class="text-[#059669]">Gate</span></span>
+            </div>
+
+            <!-- Right: Action Pills -->
+            <div class="flex items-center justify-end gap-2">
+                <!-- 1. Voice: ON/OFF (with animated equalizer bars & pulsing green dot during playback) -->
                 <button id="voice-toggle-btn" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition">
                     <span id="voice-dot" class="h-2 w-2 rounded-full bg-[#059669]"></span>
                     <span>Voice: <strong id="voice-status-text">ON</strong></span>
@@ -64,14 +68,14 @@
                     <span id="pending-count-pill" class="px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold bg-[#D97706] text-white">0</span>
                 </button>
 
-                <!-- 3. Audit Log Drawer Button with Emerald Badge -->
+                <!-- 4. Audit & Analytics Drawer Button with Emerald Badge -->
                 <button id="audit-drawer-open-btn" class="h-[38px] px-3.5 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-2 transition">
-                    <svg class="w-4 h-4 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <span>Audit Log</span>
+                    <svg class="w-4 h-4 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span>Audit & Analytics</span>
                     <span id="audit-count-pill" class="px-1.5 py-0.2 rounded-full text-[11px] font-mono font-bold bg-[#E6F7F0] text-[#047857]">0</span>
                 </button>
 
-                <!-- 4. Reset Session Button -->
+                <!-- 5. Reset Session Button -->
                 <button id="reset-session-btn" title="Reset demo session and clear queue" class="h-[38px] px-3 text-[14px] font-medium rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#EAEAEA] text-[#111827] flex items-center gap-1.5 transition">
                     <svg class="w-3.5 h-3.5 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                     <span>Reset</span>
@@ -93,7 +97,7 @@
                                 MongoDB Auto-Refund Limit:
                             </div>
                             <div class="flex items-baseline gap-1">
-                                <span id="hero-policy-limit" class="text-[26px] font-bold text-[#111827] font-mono leading-none tracking-tight">$50.00</span>
+                                <span id="hero-policy-limit" class="text-[26px] font-bold text-[#111827] font-mono leading-none tracking-tight">$50</span>
                                 <span class="text-xs font-semibold text-[#6B7280] font-mono">USD</span>
                             </div>
                         </div>
@@ -123,7 +127,7 @@
         <!-- ============================================================ -->
         <main id="chat-container" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-4 py-3 pb-8 space-y-4">
             
-            <!-- Welcome greeting agent card (15px typography, 1.5 line-height) -->
+            <!-- Proactive Welcome Card & Voice Onboarding CTA -->
             <div class="agent-msg-card animate-fade-in">
                 <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#F0F0F0]">
                     <div class="flex items-center gap-2">
@@ -144,8 +148,16 @@
                 </p>
 
                 <p class="text-[13.5px] text-[#4B5563] mt-2 leading-[1.5]">
-                    Select any order scenario below or type your inquiry to test live automated support.
+                    Select any order scenario below or click below to start a live two-way voice session powered by ElevenLabs.
                 </p>
+
+                <div class="mt-3.5 pt-3 border-t border-[#F0F0F0] flex items-center justify-between">
+                    <button id="start-voice-support-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-[13.5px] font-bold shadow-sm transition">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+                        <span>Start Voice Support (ElevenLabs)</span>
+                    </button>
+                    <span class="text-xs text-[#9CA3AF] font-mono">Push-to-Talk Available Below</span>
+                </div>
             </div>
 
             <!-- Dynamic Messages and Inline HITL Cards appended here -->
@@ -163,17 +175,17 @@
         <!-- 4. BOTTOM SCENARIO CHIPS + INPUT BAR (shrink-0, pb-5 pt-3)    -->
         <!-- ============================================================ -->
         <footer class="shrink-0 w-full max-w-4xl mx-auto px-4 pb-5 pt-3 bg-[#FAFAFA] border-t border-[#EAEAEA]">
-            <!-- 3 Compact Scenario Buttons (flex-wrap justify-center gap-2, px-3.5 py-2 text-[13.5px]) -->
+            <!-- 3 Compact Scenario Buttons with Numeric IDs & Whole-Dollar Formatting -->
             <div class="flex flex-wrap justify-center gap-2 mb-2.5">
-                <button type="button" class="scenario-chip" data-prompt="I want to return order #ORD-1042 for a $28.00 refund (alex@example.com).">
+                <button type="button" class="scenario-chip" data-prompt="I want to return order 1042 for a $28 refund (alex@example.com).">
                     <span class="w-2 h-2 rounded-full bg-[#059669]"></span>
-                    <span>Refund $28 for #ORD-1042</span>
+                    <span>Refund $28 for order 1042</span>
                     <span class="text-[11px] font-bold text-[#059669] bg-[#E6F7F0] px-2 py-0.5 rounded-full">Auto-Approves</span>
                 </button>
 
-                <button type="button" class="scenario-chip" data-prompt="Please refund $250.00 for order #ORD-1089 blanket. Email: alex@example.com.">
+                <button type="button" class="scenario-chip" data-prompt="Please refund $250 for order 1089 blanket. Email: alex@example.com.">
                     <span class="w-2 h-2 rounded-full bg-[#D97706]"></span>
-                    <span>Refund $250 for #ORD-1089</span>
+                    <span>Refund $250 for order 1089</span>
                     <span class="text-[11px] font-bold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded-full">Triggers HITL Gate</span>
                 </button>
 
@@ -184,14 +196,22 @@
                 </button>
             </div>
 
-            <!-- Balanced Pill Composer (15px font) -->
-            <form id="chat-form" class="pill-composer">
+            <!-- Balanced Pill Composer with Push-to-Talk Mic -->
+            <form id="chat-form" class="pill-composer flex items-center gap-2 bg-white rounded-full border border-[#EAEAEA] p-1.5 shadow-sm">
+                <!-- Push-to-Talk Mic Button -->
+                <button type="button" id="mic-btn" title="Push-to-Talk Voice Input (Hold to speak)" class="w-[38px] h-[38px] rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#111827] flex items-center justify-center flex-shrink-0 transition relative">
+                    <svg id="mic-icon" class="w-4 h-4 text-[#111827]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    <span id="mic-pulse" class="hidden absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 animate-ping"></span>
+                </button>
+
                 <input 
                     id="chat-input" 
                     type="text" 
-                    placeholder="Ask customer support or request a refund..." 
+                    placeholder="Ask support or hold mic to speak..." 
                     autocomplete="off"
+                    class="flex-1 px-3 text-[15px] outline-none bg-transparent text-[#111827]"
                 />
+
                 <button type="submit" title="Send message" class="w-[38px] h-[38px] rounded-full bg-[#059669] hover:bg-[#047857] text-white flex items-center justify-center flex-shrink-0 transition">
                     <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                 </button>
@@ -245,18 +265,18 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- SLIDE-OVER DRAWER 2: AUDIT LOG (audit_logs)                  -->
+    <!-- SLIDE-OVER DRAWER 2: AUDIT & ANALYTICS (audit_logs)          -->
     <!-- ============================================================ -->
     <div id="audit-drawer" class="drawer-backdrop hidden">
-        <div class="drawer-panel p-6">
+        <div class="drawer-panel p-6 flex flex-col">
             <!-- Header -->
             <div class="flex items-center justify-between pb-4 border-b border-[#EAEAEA]">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-[#E6F7F0] text-[#059669] flex items-center justify-center font-bold">
-                        <svg class="w-5 h-5 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <svg class="w-5 h-5 text-[#059669]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </div>
                     <div>
-                        <h2 class="text-base font-extrabold text-[#111827]">Immutable Audit Ledger</h2>
+                        <h2 class="text-base font-extrabold text-[#111827]">Audit & Analytics Ledger</h2>
                         <p class="text-xs text-[#6B7280]">MongoDB: <code class="text-[#059669] font-mono font-bold">auditable_agent.audit_logs</code></p>
                     </div>
                 </div>
@@ -270,8 +290,28 @@
                 </div>
             </div>
 
+            <!-- Real-Time Analytics KPI Grid ($facet pipeline) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 pb-3">
+                <div class="p-3 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
+                    <div class="text-[10.5px] uppercase font-bold text-[#6B7280]">Total Audited</div>
+                    <div id="kpi-total-audited" class="text-[20px] font-black text-[#111827] font-mono leading-tight mt-0.5">0</div>
+                </div>
+                <div class="p-3 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
+                    <div class="text-[10.5px] uppercase font-bold text-[#6B7280]">Block Rate</div>
+                    <div id="kpi-block-rate" class="text-[20px] font-black text-[#DC2626] font-mono leading-tight mt-0.5">0%</div>
+                </div>
+                <div class="p-3 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
+                    <div class="text-[10.5px] uppercase font-bold text-[#6B7280]">Avg Amount</div>
+                    <div id="kpi-avg-amount" class="text-[20px] font-black text-[#111827] font-mono leading-tight mt-0.5">$0</div>
+                </div>
+                <div class="p-3 rounded-xl bg-[#FAFAFA] border border-[#EAEAEA]">
+                    <div class="text-[10.5px] uppercase font-bold text-[#6B7280]">Auto-Approved</div>
+                    <div id="kpi-auto-approved" class="text-[20px] font-black text-[#059669] font-mono leading-tight mt-0.5">0</div>
+                </div>
+            </div>
+
             <!-- Table Content -->
-            <div class="flex-1 overflow-y-auto py-3">
+            <div class="flex-1 overflow-y-auto py-2">
                 <table class="w-full text-left text-xs border-collapse">
                     <thead>
                         <tr class="border-b border-[#EAEAEA] text-[#6B7280] uppercase tracking-wider text-[11px] font-bold">
@@ -349,7 +389,9 @@
             <pre id="bson-modal-code" class="text-xs font-mono text-[#111827] bg-[#FAFAFA] border border-[#EAEAEA] p-4 rounded-xl overflow-x-auto max-h-96"></pre>
 
             <div class="mt-4 pt-3 border-t border-[#EAEAEA] flex items-center justify-between">
-                <span class="text-xs text-[#6B7280]">Validated against MongoDB $jsonSchema</span>
+                <div id="bson-langsmith-container">
+                    <!-- Populated if log has LangSmith URL -->
+                </div>
                 <button id="copy-bson-btn" class="px-4 py-2 text-xs font-bold rounded-xl bg-[#059669] hover:bg-[#047857] text-white flex items-center gap-1.5 transition">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     <span>Copy JSON</span>

@@ -5,9 +5,10 @@ from app.database.mongodb import get_database
 
 logger = logging.getLogger(__name__)
 
-AUDIT_LOGS_COLLECTION = "audit_logs"
+# -------------------------------------------------------------
+# MongoDB 9.0 Strict $jsonSchema Definitions with schemaVersion
+# -------------------------------------------------------------
 
-# Strict JSON Schema enforced at the MongoDB database engine level
 AUDIT_LOG_SCHEMA: Dict[str, Any] = {
     "$jsonSchema": {
         "bsonType": "object",
@@ -21,6 +22,10 @@ AUDIT_LOG_SCHEMA: Dict[str, Any] = {
             "reason"
         ],
         "properties": {
+            "schema_version": {
+                "bsonType": "int",
+                "description": "Schema version indicator"
+            },
             "timestamp": {
                 "bsonType": ["date", "string"],
                 "description": "Timestamp when the governance decision was evaluated"
@@ -64,7 +69,104 @@ AUDIT_LOG_SCHEMA: Dict[str, Any] = {
             },
             "metadata": {
                 "bsonType": "object",
-                "description": "Optional contextual metadata (e.g. human manager ID, prompt hash)"
+                "description": "Contextual metadata (e.g. LangSmith run IDs, order details)"
+            }
+        },
+        "additionalProperties": True
+    }
+}
+
+ORDERS_SCHEMA: Dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["order_id", "customer_id", "email", "item", "amount", "status"],
+        "properties": {
+            "schema_version": {
+                "bsonType": "int"
+            },
+            "order_id": {
+                "bsonType": "string",
+                "pattern": "^[0-9]+$",
+                "description": "Strictly numeric string order identifier (no # or ORD- prefix)"
+            },
+            "customer_id": {
+                "bsonType": "string"
+            },
+            "email": {
+                "bsonType": "string",
+                "pattern": "^.+@.+\\..+$",
+                "description": "Customer email address"
+            },
+            "item": {
+                "bsonType": "string"
+            },
+            "amount": {
+                "bsonType": ["double", "int", "long", "decimal"],
+                "minimum": 0
+            },
+            "currency": {
+                "bsonType": "string"
+            },
+            "status": {
+                "enum": ["DELIVERED", "REFUNDED", "ALREADY_REFUNDED"],
+                "description": "Order fulfillment / return status"
+            }
+        },
+        "additionalProperties": True
+    }
+}
+
+POLICIES_SCHEMA: Dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["agent_id", "max_auto_refund", "currency"],
+        "properties": {
+            "schema_version": {
+                "bsonType": "int"
+            },
+            "agent_id": {
+                "bsonType": "string"
+            },
+            "max_auto_refund": {
+                "bsonType": ["double", "int", "long", "decimal"],
+                "minimum": 0,
+                "description": "Maximum automated refund limit in USD"
+            },
+            "currency": {
+                "bsonType": "string"
+            }
+        },
+        "additionalProperties": True
+    }
+}
+
+REFUND_REQUESTS_SCHEMA: Dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["request_id", "thread_id", "customer_id", "order_id", "amount", "status"],
+        "properties": {
+            "schema_version": {
+                "bsonType": "int"
+            },
+            "request_id": {
+                "bsonType": "string"
+            },
+            "thread_id": {
+                "bsonType": "string"
+            },
+            "customer_id": {
+                "bsonType": "string"
+            },
+            "order_id": {
+                "bsonType": "string"
+            },
+            "amount": {
+                "bsonType": ["double", "int", "long", "decimal"],
+                "minimum": 0
+            },
+            "status": {
+                "enum": ["PENDING", "APPROVED", "REJECTED"],
+                "description": "Human manager review status"
             }
         },
         "additionalProperties": True
@@ -72,34 +174,50 @@ AUDIT_LOG_SCHEMA: Dict[str, Any] = {
 }
 
 
-def init_schema_validation() -> None:
+COLLECTION_SCHEMAS = {
+    "audit_logs": AUDIT_LOG_SCHEMA,
+    "orders": ORDERS_SCHEMA,
+    "policies": POLICIES_SCHEMA,
+    "refund_requests": REFUND_REQUESTS_SCHEMA
+}
+
+
+def apply_collection_schema(collection_name: str, schema: Dict[str, Any]) -> None:
     """
-    Programmatically creates or updates the audit_logs collection with
-    strict $jsonSchema validation so MongoDB Atlas physically rejects
-    any malformed or unauthenticated writes.
+    Applies strict $jsonSchema validation with errorAndLog action on a specific collection.
+    NEVER apply validators to 'checkpoints' or 'checkpoint_writes'.
     """
     db = get_database()
     existing_collections = db.list_collection_names()
 
-    if AUDIT_LOGS_COLLECTION not in existing_collections:
-        logger.info(f"Creating '{AUDIT_LOGS_COLLECTION}' collection with strict $jsonSchema validator...")
+    if collection_name not in existing_collections:
+        logger.info(f"Creating '{collection_name}' collection with strict $jsonSchema validator...")
         db.create_collection(
-            AUDIT_LOGS_COLLECTION,
-            validator=AUDIT_LOG_SCHEMA,
+            collection_name,
+            validator=schema,
             validationLevel="strict",
             validationAction="error"
         )
-        logger.info(f"Successfully created '{AUDIT_LOGS_COLLECTION}' with database-level schema validation.")
+        logger.info(f"Created '{collection_name}' with database-level schema validation.")
     else:
-        logger.info(f"Applying strict $jsonSchema validator to existing '{AUDIT_LOGS_COLLECTION}' collection...")
         try:
             db.command(
                 "collMod",
-                AUDIT_LOGS_COLLECTION,
-                validator=AUDIT_LOG_SCHEMA,
+                collection_name,
+                validator=schema,
                 validationLevel="strict",
                 validationAction="error"
             )
-            logger.info(f"Successfully updated '{AUDIT_LOGS_COLLECTION}' collection schema validator via collMod.")
+            logger.info(f"Applied strict $jsonSchema to '{collection_name}' via collMod.")
         except OperationFailure as e:
-            logger.warning(f"Notice on collMod for '{AUDIT_LOGS_COLLECTION}': {e}")
+            logger.warning(f"Notice on collMod for '{collection_name}': {e}")
+
+
+def init_schema_validation() -> None:
+    """
+    Programmatically applies strict $jsonSchema validation across all 4 business collections:
+    audit_logs, orders, policies, and refund_requests.
+    Leaves LangGraph checkpoints and checkpoint_writes unvalidated.
+    """
+    for col_name, schema in COLLECTION_SCHEMAS.items():
+        apply_collection_schema(col_name, schema)

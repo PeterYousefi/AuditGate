@@ -189,152 +189,176 @@
         <!-- ============================================================ -->
         <!-- RIGHT COLUMN (58%): Merchant Governance & Live Audit Console -->
         <!-- ============================================================ -->
-        <section class="w-full lg:w-[58%] flex flex-col overflow-y-auto space-y-5">
+        <section class="w-full lg:w-[58%] flex flex-col space-y-4 overflow-hidden">
 
-            <!-- 1. TOP METRIC STRIP (3 Shopify-Style KPI Cards) -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- KPI 1: Live Policy Limit -->
-                <div class="polaris-card p-4 bg-white flex flex-col justify-between">
-                    <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#6D7175]">Auto-Refund Limit</span>
-                            <span class="h-2 w-2 rounded-full bg-[#008060]"></span>
-                        </div>
-                        <div id="live-policy-limit-hero" class="text-2xl font-extrabold text-[#202223] font-mono tracking-tight">$50.00</div>
-                        <p class="text-[11px] text-[#6D7175] mt-0.5">Queried live from <code class="text-[#008060]">policies</code></p>
-                    </div>
+            <!-- 1. SEGMENTED NAVIGATION TAB HEADER -->
+            <div class="polaris-card bg-white p-2.5 flex items-center justify-between shadow-xs">
+                <div class="flex items-center gap-1.5 p-1 bg-[#F6F6F7] rounded-xl border border-[#EDEEEF]" role="tablist">
+                    <!-- Tab 1: Governance & Approvals -->
+                    <button id="tab-governance-btn" class="polaris-tab active" role="tab" aria-selected="true" aria-controls="view-governance">
+                        <svg class="w-4 h-4 text-[#008060]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        <span>Governance & Approvals</span>
+                        <span id="tab-pending-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-white text-[#B98900] border border-[#FFE0B2] shadow-2xs">0</span>
+                    </button>
 
-                    <!-- Inline Policy Modifier -->
-                    <div class="mt-3 pt-2.5 border-t border-[#EDEEEF] flex items-center gap-1.5">
-                        <div class="relative flex-1">
-                            <span class="absolute left-2.5 top-1.5 text-xs text-[#6D7175] font-mono">$</span>
-                            <input id="policy-limit-input" type="number" step="5" min="0" value="50" class="w-full bg-[#F6F6F7] border border-[#E1E3E5] focus:border-[#008060] focus:bg-white rounded-md pl-6 pr-1.5 py-1 text-xs text-[#202223] font-mono focus:outline-none" />
-                        </div>
-                        <button id="update-policy-btn" class="btn-emerald px-2.5 py-1 text-[11px] whitespace-nowrap">
-                            Update
-                        </button>
-                    </div>
+                    <!-- Tab 2: Immutable Audit Trail (MongoDB) -->
+                    <button id="tab-audit-btn" class="polaris-tab" role="tab" aria-selected="false" aria-controls="view-audit">
+                        <svg class="w-4 h-4 text-[#6D7175]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span>Immutable Audit Trail (MongoDB)</span>
+                        <span id="tab-audit-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-white text-[#6D7175] border border-[#E1E3E5] shadow-2xs">0</span>
+                    </button>
                 </div>
 
-                <!-- KPI 2: Active Agent Identity -->
-                <div class="polaris-card p-4 bg-white flex flex-col justify-between">
-                    <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#6D7175]">Agent Identity</span>
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#E3F1DF] text-[#006E52]">
-                                Verified
-                            </span>
-                        </div>
-                        <div class="text-base font-extrabold text-[#202223] font-mono mt-1">agent_01</div>
-                        <p class="text-[11px] text-[#6D7175] font-mono">Role: support_agent</p>
-                    </div>
-                    <div class="mt-3 pt-2.5 border-t border-[#EDEEEF] text-[11px] text-[#6D7175] flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5 text-[#008060]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                        <span>Deterministic guardrails</span>
-                    </div>
+                <!-- Secondary Atlas Live Tag -->
+                <div class="hidden sm:flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#FAF9F6] border border-[#E1E3E5] text-[11px] font-mono text-[#6D7175]">
+                        <span class="h-2 w-2 rounded-full bg-[#008060] animate-pulse"></span>
+                        Atlas Change Streams Active
+                    </span>
                 </div>
+            </div>
 
-                <!-- KPI 3: Database Engine Validation -->
-                <div class="polaris-card p-4 bg-white flex flex-col justify-between">
-                    <div>
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#6D7175]">DB Enforcement</span>
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FAF9F6] border border-[#E1E3E5] text-[#202223]">
-                                $jsonSchema
-                            </span>
+            <!-- ============================================================ -->
+            <!-- TAB 1 CONTENT: Governance & Approvals                        -->
+            <!-- ============================================================ -->
+            <div id="view-governance" class="flex flex-col space-y-4">
+                
+                <!-- TOP POLICY BAR (Single Compact Horizontal White Card) -->
+                <div class="polaris-card bg-white p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                    <!-- Left: Auto-Refund Limit + Inline Editor -->
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-[#6D7175]">Auto-Refund Limit:</span>
+                            <span id="live-policy-limit-hero" class="text-xl font-extrabold text-[#202223] font-mono tracking-tight">$50.00</span>
                         </div>
-                        <div class="text-sm font-bold text-[#008060] mt-1 flex items-center gap-1.5">
-                            <span class="h-2 w-2 rounded-full bg-[#008060]"></span>
-                            <span>Change Streams Active</span>
+                        <div class="flex items-center gap-1.5 pl-3 border-l border-[#EDEEEF]">
+                            <div class="relative w-24">
+                                <span class="absolute left-2.5 top-1.5 text-xs text-[#6D7175] font-mono">$</span>
+                                <input id="policy-limit-input" type="number" step="5" min="0" value="50" class="w-full bg-[#F6F6F7] border border-[#E1E3E5] focus:border-[#008060] focus:bg-white rounded-md pl-6 pr-1.5 py-1 text-xs text-[#202223] font-mono focus:outline-none" />
+                            </div>
+                            <button id="update-policy-btn" class="btn-emerald px-3 py-1 text-xs whitespace-nowrap">
+                                Update
+                            </button>
                         </div>
-                        <p class="text-[11px] text-[#6D7175] mt-0.5">Physical non-repudiation</p>
                     </div>
 
-                    <!-- Test Schema Tamper Button -->
-                    <div class="mt-3 pt-2.5 border-t border-[#EDEEEF]">
-                        <button id="schema-test-btn" class="w-full btn-secondary py-1 text-[11px] text-[#7E22CE] border-[#D8B4FE] hover:bg-[#F3E8FF] flex items-center justify-center gap-1 transition">
+                    <!-- Right: Agent Identity Pill + Test Schema Enforcement Button -->
+                    <div class="flex items-center gap-2.5">
+                        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAF9F6] border border-[#E1E3E5] text-xs">
+                            <svg class="w-3.5 h-3.5 text-[#008060]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                            <span class="text-[#6D7175] font-medium">Agent:</span>
+                            <span class="font-mono font-bold text-[#202223]">agent_01</span>
+                            <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-[#E3F1DF] text-[#006E52]">support_agent</span>
+                        </div>
+                        <button id="schema-test-btn" class="btn-secondary px-3 py-1.5 text-xs text-[#7E22CE] border-[#D8B4FE] hover:bg-[#F3E8FF] flex items-center gap-1.5 transition">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                            <span>Test Schema Tamper</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- RAW SCHEMA REJECTION ALERT BANNER (Revealed on test click) -->
-            <div id="schema-result-card" class="hidden polaris-card p-4 bg-[#FFF5EA] border-[#FFE0B2] shadow-sm animate-fade-in">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="p-1 rounded bg-[#B98900] text-white">
-                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                        </span>
-                        <h4 class="text-xs font-bold text-[#202223]">MongoDB Atlas $jsonSchema Physical Rejection (Code 121)</h4>
-                    </div>
-                    <button onclick="document.getElementById('schema-result-card').classList.add('hidden')" class="text-[#6D7175] hover:text-[#202223] text-xs font-bold">✕</button>
-                </div>
-                <p class="text-xs text-[#6D7175] mb-2 leading-relaxed">
-                    The database engine physically refused this write because required audit fields (<code class="text-[#B98900]">['decision', 'policy_limit_applied', 'timestamp']</code>) were omitted.
-                </p>
-                <pre id="schema-error-code" class="text-[11px] font-mono text-[#202223] bg-white border border-[#E1E3E5] p-3 rounded-lg overflow-x-auto max-h-48"></pre>
-            </div>
-
-            <!-- 2. HUMAN-IN-THE-LOOP APPROVAL QUEUE (Clean Merchant Action Cards) -->
-            <div class="polaris-card p-5 bg-white">
-                <div class="flex items-center justify-between mb-3.5 pb-2.5 border-b border-[#EDEEEF]">
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-6 rounded-md bg-[#FFF5EA] text-[#B98900] flex items-center justify-center font-bold text-xs">
-                            ⏳
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-bold text-[#202223]">Human-in-the-Loop Governance Queue</h3>
-                            <p class="text-[11px] text-[#6D7175]">Paused LangGraph Threads checkpointed in MongoDB <code class="text-[#B98900]">refund_requests</code></p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span id="pending-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">0</span>
-                        <button id="clear-stale-btn" class="text-[11px] text-[#6D7175] hover:text-[#202223] font-semibold underline decoration-[#C9CCCF]">
-                            Clear Stale
+                            <span>Test Schema Enforcement</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Pending Approval Cards Container -->
-                <div id="pending-requests-container" class="space-y-3">
-                    <!-- Populated dynamically -->
+                <!-- DISMISSIBLE SCHEMA REJECTION TOAST / BANNER -->
+                <div id="schema-result-card" class="hidden polaris-card p-4 bg-[#FFF5EA] border-[#FFE0B2] shadow-sm animate-fade-in">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="p-1 rounded bg-[#B98900] text-white">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                            </span>
+                            <h4 class="text-xs font-bold text-[#202223]">MongoDB Atlas $jsonSchema Physical Rejection (Code 121)</h4>
+                        </div>
+                        <button onclick="document.getElementById('schema-result-card').classList.add('hidden')" class="text-[#6D7175] hover:text-[#202223] text-xs font-bold p-1">✕</button>
+                    </div>
+                    <p class="text-xs text-[#6D7175] mb-2 leading-relaxed">
+                        The database engine physically refused this write because required audit fields (<code class="text-[#B98900]">['decision', 'policy_limit_applied', 'timestamp']</code>) were omitted.
+                    </p>
+                    <pre id="schema-error-code" class="text-[11px] font-mono text-[#202223] bg-white border border-[#E1E3E5] p-3 rounded-lg overflow-x-auto max-h-40"></pre>
                 </div>
+
+                <!-- COMPACT PENDING APPROVALS TABLE (Shopify IndexTable style) -->
+                <div class="polaris-card bg-white overflow-hidden shadow-xs flex flex-col">
+                    <div class="px-4 py-3 border-b border-[#E1E3E5] flex items-center justify-between bg-white">
+                        <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-md bg-[#FFF5EA] text-[#B98900] flex items-center justify-center font-bold text-xs">
+                                ⏳
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-sm font-bold text-[#202223]">Pending Governance Approvals</h3>
+                                    <span id="pending-count-badge" class="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">0</span>
+                                </div>
+                                <p class="text-[11px] text-[#6D7175]">Paused LangGraph Threads checkpointed in MongoDB <code class="text-[#B98900]">refund_requests</code></p>
+                            </div>
+                        </div>
+                        <button id="clear-all-pending-btn" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-[#E1E3E5] hover:bg-[#F6F6F7] text-[#6D7175] hover:text-[#D82C0D] hover:border-[#FACDC6] flex items-center gap-1.5 transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            <span>Clear All Pending</span>
+                        </button>
+                    </div>
+
+                    <!-- Scrollable table container with max-height: 420px -->
+                    <div class="overflow-x-auto overflow-y-auto max-h-[420px]">
+                        <table class="polaris-index-table">
+                            <thead>
+                                <tr>
+                                    <th class="w-1/4">Request / Order</th>
+                                    <th class="w-2/5">Reason</th>
+                                    <th class="w-1/6 text-right">Amount</th>
+                                    <th class="w-1/4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-requests-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
 
-            <!-- 3. LIVE IMMUTABLE AUDIT LEDGER (Bottom Card) -->
-            <div class="polaris-card p-5 bg-white">
-                <div class="flex items-center justify-between mb-3 pb-2.5 border-b border-[#EDEEEF]">
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-6 rounded-md bg-[#E3F1DF] text-[#008060] flex items-center justify-center font-bold text-xs">
-                            📋
+            <!-- ============================================================ -->
+            <!-- TAB 2 CONTENT: Immutable Audit Trail (MongoDB)               -->
+            <!-- ============================================================ -->
+            <div id="view-audit" class="hidden flex-col space-y-4">
+                <div class="polaris-card bg-white overflow-hidden shadow-xs flex flex-col">
+                    <div class="px-5 py-4 border-b border-[#E1E3E5] flex items-center justify-between bg-white">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-[#E3F1DF] text-[#008060] flex items-center justify-center font-bold text-xs">
+                                📋
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-sm font-bold text-[#202223]">MongoDB Atlas Immutable Audit Trail</h3>
+                                    <span id="audit-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-[#F6F6F7] text-[#6D7175] border border-[#E1E3E5]">0</span>
+                                </div>
+                                <p class="text-[11px] text-[#6D7175]">Physical MongoDB Atlas non-repudiation ledger (<code class="text-[#008060]">audit_logs</code>) enforced by strict <code class="text-[#008060]">$jsonSchema</code></p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 class="text-sm font-bold text-[#202223]">MongoDB Atlas Immutable Audit Trail</h3>
-                            <p class="text-[11px] text-[#6D7175]">Strictly validated non-repudiation ledger (<code class="text-[#008060]">audit_logs</code>)</p>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#E3F1DF] text-[#006E52] border border-[#B7DDB1]">
+                                <svg class="w-3 h-3 text-[#008060]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                <span>Strict $jsonSchema Enforced</span>
+                            </span>
                         </div>
                     </div>
-                    <span id="audit-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-[#F6F6F7] text-[#6D7175] border border-[#E1E3E5]">0</span>
-                </div>
 
-                <!-- Audit Logs Table -->
-                <div class="overflow-x-auto rounded-lg border border-[#EDEEEF]">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b border-[#EDEEEF] bg-[#FAF9F6] text-[11px] font-bold text-[#6D7175] uppercase tracking-wider">
-                                <th class="py-2.5 px-3.5">Time</th>
-                                <th class="py-2.5 px-3.5">Verdict</th>
-                                <th class="py-2.5 px-3.5">Amount</th>
-                                <th class="py-2.5 px-3.5">Limit</th>
-                                <th class="py-2.5 px-3.5">Reason / Justification</th>
-                                <th class="py-2.5 px-3.5 text-right">Raw BSON</th>
-                            </tr>
-                        </thead>
-                        <tbody id="audit-logs-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+                    <!-- Spacious Full-Height Shopify Polaris IndexTable -->
+                    <div class="overflow-x-auto overflow-y-auto max-h-[580px]">
+                        <table class="polaris-index-table">
+                            <thead>
+                                <tr>
+                                    <th class="whitespace-nowrap">Timestamp</th>
+                                    <th>Event / Action</th>
+                                    <th class="text-right">Amount</th>
+                                    <th>Decision Badge</th>
+                                    <th>MongoDB Document ID</th>
+                                    <th class="text-right">Inspect</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-logs-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 

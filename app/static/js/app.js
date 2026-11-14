@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initApp() {
     setupEventListeners();
+    setupTabs();
     updateThreadDisplay();
     fetchLivePolicy();
     fetchPendingRequests();
@@ -23,6 +24,38 @@ function initApp() {
         fetchPendingRequests();
         fetchAuditLogs();
     }, 3000);
+}
+
+function setupTabs() {
+    const tabGovBtn = document.getElementById("tab-governance-btn");
+    const tabAuditBtn = document.getElementById("tab-audit-btn");
+    const viewGov = document.getElementById("view-governance");
+    const viewAudit = document.getElementById("view-audit");
+
+    if (tabGovBtn && tabAuditBtn && viewGov && viewAudit) {
+        tabGovBtn.addEventListener("click", () => {
+            tabGovBtn.classList.add("active");
+            tabGovBtn.setAttribute("aria-selected", "true");
+            tabAuditBtn.classList.remove("active");
+            tabAuditBtn.setAttribute("aria-selected", "false");
+
+            viewGov.classList.remove("hidden");
+            viewAudit.classList.add("hidden");
+        });
+
+        tabAuditBtn.addEventListener("click", () => {
+            tabAuditBtn.classList.add("active");
+            tabAuditBtn.setAttribute("aria-selected", "true");
+            tabGovBtn.classList.remove("active");
+            tabGovBtn.setAttribute("aria-selected", "false");
+
+            viewAudit.classList.remove("hidden");
+            viewGov.classList.add("hidden");
+
+            // Refresh audit logs immediately upon opening Tab 2
+            fetchAuditLogs();
+        });
+    }
 }
 
 function updateThreadDisplay() {
@@ -41,8 +74,28 @@ function setupEventListeners() {
     const newThreadBtn = document.getElementById("new-thread-btn");
     const clearQueueBtn = document.getElementById("clear-queue-btn");
     const clearStaleBtn = document.getElementById("clear-stale-btn");
+    const clearAllPendingBtn = document.getElementById("clear-all-pending-btn");
     const closeBsonModalBtn = document.getElementById("close-bson-modal-btn");
     const copyBsonBtn = document.getElementById("copy-bson-btn");
+    const bsonModal = document.getElementById("bson-modal");
+
+    if (clearAllPendingBtn) {
+        clearAllPendingBtn.addEventListener("click", clearPendingQueue);
+    }
+
+    if (bsonModal) {
+        bsonModal.addEventListener("click", (e) => {
+            if (e.target === bsonModal) {
+                bsonModal.classList.add("hidden");
+            }
+        });
+    }
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && bsonModal && !bsonModal.classList.contains("hidden")) {
+            bsonModal.classList.add("hidden");
+        }
+    });
 
     if (chatForm) {
         chatForm.addEventListener("submit", (e) => {
@@ -429,73 +482,78 @@ async function fetchPendingRequests() {
 }
 
 function renderPendingRequests(requests) {
-    const container = document.getElementById("pending-requests-container");
+    const tbody = document.getElementById("pending-requests-tbody");
     const countBadge = document.getElementById("pending-count-badge");
-    if (countBadge) {
-        countBadge.innerText = requests.length;
-    }
+    const tabBadge = document.getElementById("tab-pending-badge");
+    
+    if (countBadge) countBadge.innerText = requests.length;
+    if (tabBadge) tabBadge.innerText = requests.length;
 
-    if (!container) return;
+    if (!tbody) return;
 
     if (requests.length === 0) {
-        container.innerHTML = `
-            <div class="py-10 text-center bg-[#FAF9F6] border border-[#E1E3E5] rounded-xl">
-                <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-[#E3F1DF] text-[#008060] flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                </div>
-                <h4 class="text-sm font-semibold text-[#202223]">Queue Clear</h4>
-                <p class="text-xs text-[#6D7175] mt-0.5">All customer requests are operating within autonomous policy bounds.</p>
-            </div>
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="py-12 text-center">
+                    <div class="w-9 h-9 mx-auto mb-2 rounded-full bg-[#E3F1DF] text-[#008060] flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <p class="text-xs font-bold text-[#202223]">Queue Clear</p>
+                    <p class="text-[11px] text-[#6D7175] mt-0.5">All customer requests are operating within autonomous policy bounds.</p>
+                </td>
+            </tr>
         `;
         return;
     }
 
-    container.innerHTML = requests.map(req => {
+    tbody.innerHTML = requests.map(req => {
         const isInjection = /override|ignore|jailbreak|bypass|hack/i.test(req.reason || "");
         const formattedDate = req.created_at ? new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Just now";
 
         return `
-            <div class="bg-white border border-[#E1E3E5] rounded-xl p-4 mb-3.5 shadow-sm hover:shadow-md transition">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">
+            <tr class="hover:bg-[#FAF9F6] transition">
+                <td class="whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-mono text-xs font-bold text-[#B98900] bg-[#FFF5EA] px-2 py-0.5 rounded border border-[#FFE0B2]">
                             ${escapeHtml(req.request_id)}
                         </span>
-                        <span class="text-xs text-[#6D7175]">${formattedDate}</span>
+                        ${isInjection ? `
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FDEBE7] text-[#D82C0D] border border-[#FACDC6]">
+                                ⚠️ Prompt Injection
+                            </span>
+                        ` : ''}
                     </div>
-                    <div class="text-base font-extrabold text-[#202223] font-mono">
-                        $${parseFloat(req.amount).toFixed(2)} <span class="text-xs font-normal text-[#6D7175]">USD</span>
+                    <div class="text-[10px] text-[#6D7175] font-mono mt-0.5 flex items-center gap-1">
+                        <span>${formattedDate}</span>
+                        <span>•</span>
+                        <span class="truncate max-w-[120px]" title="${escapeHtml(req.thread_id)}">${escapeHtml(req.thread_id)}</span>
                     </div>
-                </div>
-
-                ${isInjection ? `
-                    <div class="mb-2 px-2.5 py-1 rounded bg-[#FDEBE7] border border-[#FACDC6] flex items-center gap-1.5 text-xs font-bold text-[#D82C0D]">
-                        <svg class="w-4 h-4 text-[#D82C0D]" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                        Adversarial Override Keywords Detected
+                </td>
+                <td>
+                    <div class="text-xs text-[#202223] max-w-xs md:max-w-sm truncate cursor-help" title="${escapeHtml(req.reason)}">
+                        ${escapeHtml(req.reason)}
                     </div>
-                ` : ''}
-
-                <div class="bg-[#F6F6F7] border border-[#EDEEEF] rounded-lg p-2.5 mb-3 text-xs text-[#202223] leading-relaxed">
-                    <span class="text-[#6D7175] font-semibold block mb-0.5">Customer Claim / Reason:</span>
-                    ${escapeHtml(req.reason)}
-                </div>
-
-                <div class="flex items-center justify-between text-[11px] text-[#6D7175] font-mono mb-3 pt-1 border-t border-[#EDEEEF]">
-                    <span>Thread: ${escapeHtml(req.thread_id.substring(0, 16))}...</span>
-                    <span>Applied Limit: <strong>$${parseFloat(req.policy_limit_applied || 50).toFixed(2)}</strong></span>
-                </div>
-
-                <div class="flex gap-2">
-                    <button onclick="approveRequest('${req.request_id}')" class="flex-1 btn-emerald py-2 text-xs flex items-center justify-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                        Approve & Resume
-                    </button>
-                    <button onclick="rejectRequest('${req.request_id}')" class="px-4 py-2 text-xs font-semibold rounded-lg bg-white border border-[#D82C0D] text-[#D82C0D] hover:bg-[#FDEBE7] transition flex items-center justify-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        Reject
-                    </button>
-                </div>
-            </div>
+                    <div class="text-[10px] text-[#6D7175] mt-0.5">
+                        Applied Limit: <strong class="font-mono">$${parseFloat(req.policy_limit_applied || 50).toFixed(2)}</strong>
+                    </div>
+                </td>
+                <td class="text-right whitespace-nowrap">
+                    <span class="text-sm font-extrabold text-[#202223] font-mono">$${parseFloat(req.amount).toFixed(2)}</span>
+                    <span class="text-[10px] text-[#6D7175] block -mt-0.5">USD</span>
+                </td>
+                <td class="text-right whitespace-nowrap">
+                    <div class="inline-flex items-center gap-1.5">
+                        <button onclick="approveRequest('${req.request_id}')" class="btn-emerald px-3 py-1.5 text-xs flex items-center gap-1 shadow-2xs">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                            <span>Approve</span>
+                        </button>
+                        <button onclick="rejectRequest('${req.request_id}')" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D82C0D] text-[#D82C0D] hover:bg-[#FDEBE7] transition flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <span>Decline</span>
+                        </button>
+                    </div>
+                </td>
+            </tr>
         `;
     }).join("");
 }
@@ -566,51 +624,66 @@ async function fetchAuditLogs() {
 function renderAuditLogs(logs) {
     const tbody = document.getElementById("audit-logs-tbody");
     const countBadge = document.getElementById("audit-count-badge");
+    const tabBadge = document.getElementById("tab-audit-badge");
+    
     if (countBadge) countBadge.innerText = logs.length;
+    if (tabBadge) tabBadge.innerText = logs.length;
     if (!tbody) return;
 
     if (logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-[#6D7175]">No audit logs recorded in MongoDB Atlas yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-xs text-[#6D7175]">No audit logs recorded in MongoDB Atlas yet.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = logs.map((log, index) => {
-        let pillClass = "bg-gray-100 text-gray-700 border-gray-300";
+        let badgeHtml = "";
+        let eventName = "Refund Review";
+
         if (log.decision === "AUTO_APPROVED") {
-            pillClass = "bg-[#E3F1DF] text-[#006E52] border-[#B7DDB1]";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E3F1DF] text-[#006E52] border border-[#B7DDB1]">Auto-Approved</span>`;
+            eventName = "Autonomous Execution";
         } else if (log.decision === "PENDING_APPROVAL") {
-            pillClass = "bg-[#FFF5EA] text-[#B98900] border-[#FFE0B2]";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFF5EA] text-[#B98900] border border-[#FFE0B2]">Pending Review</span>`;
+            eventName = "Human Gate Paused";
         } else if (log.decision === "HUMAN_APPROVED") {
-            pillClass = "bg-[#EBF5FF] text-[#0066CC] border-[#B8DAFF]";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EBF5FF] text-[#0066CC] border border-[#B8DAFF]">Manager Approved</span>`;
+            eventName = "HITL Override Resumed";
         } else if (log.decision === "HUMAN_REJECTED") {
-            pillClass = "bg-[#FDEBE7] text-[#D82C0D] border-[#FACDC6]";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FDEBE7] text-[#D82C0D] border border-[#FACDC6]">Declined</span>`;
+            eventName = "Manager Decline Resumed";
         } else if (log.decision === "BLOCKED_BY_SCHEMA") {
-            pillClass = "bg-[#F3E8FF] text-[#7E22CE] border-[#D8B4FE]";
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F3E8FF] text-[#7E22CE] border border-[#D8B4FE]">Blocked (Schema)</span>`;
+            eventName = "$jsonSchema Tamper Block";
+        } else {
+            badgeHtml = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 border border-gray-300">${escapeHtml(log.decision || "LOG")}</span>`;
         }
 
         const dateStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Just now";
-        const shortId = (log._id || "").substring(0, 8);
+        const rawId = log._id || "";
+        const shortId = rawId.length > 12 ? rawId.substring(0, 10) + "..." : rawId;
 
         return `
-            <tr class="border-b border-[#EDEEEF] hover:bg-[#FAF9F6] transition text-xs">
-                <td class="py-3 px-3.5 text-[#6D7175] font-mono whitespace-nowrap">${dateStr}</td>
-                <td class="py-3 px-3.5">
-                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${pillClass}">
-                        ${escapeHtml(log.decision)}
-                    </span>
+            <tr class="hover:bg-[#FAF9F6] transition text-xs">
+                <td class="text-[#6D7175] font-mono whitespace-nowrap">${dateStr}</td>
+                <td>
+                    <div class="font-bold text-[#202223]">${eventName}</div>
+                    <div class="text-[10px] text-[#6D7175] font-mono">Agent: ${escapeHtml(log.agent_id || "agent_01")}</div>
                 </td>
-                <td class="py-3 px-3.5 font-bold text-[#202223] font-mono">
+                <td class="text-right font-extrabold text-[#202223] font-mono whitespace-nowrap">
                     $${parseFloat(log.user_requested_amount || 0).toFixed(2)}
                 </td>
-                <td class="py-3 px-3.5 text-[#6D7175] font-mono">
-                    $${parseFloat(log.policy_limit_applied || 0).toFixed(2)}
+                <td class="whitespace-nowrap">
+                    ${badgeHtml}
                 </td>
-                <td class="py-3 px-3.5 text-[#202223] max-w-xs truncate" title="${escapeHtml(log.reason || '')}">
-                    ${escapeHtml(log.reason || '')}
+                <td class="whitespace-nowrap">
+                    <span class="px-2 py-0.5 rounded font-mono text-[11px] bg-[#FAF9F6] border border-[#E1E3E5] text-[#6D7175]" title="${escapeHtml(rawId)}">
+                        ${escapeHtml(shortId)}
+                    </span>
                 </td>
-                <td class="py-3 px-3.5 text-right">
-                    <button onclick="openBsonInspector(${index})" class="px-2 py-1 text-[11px] font-mono font-semibold rounded bg-white border border-[#E1E3E5] text-[#202223] hover:bg-[#F6F6F7] hover:border-[#008060] hover:text-[#008060] transition">
-                        ${shortId}... BSON
+                <td class="text-right whitespace-nowrap">
+                    <button onclick="openBsonInspector(${index})" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-[#E1E3E5] text-[#202223] hover:border-[#008060] hover:text-[#008060] hover:bg-[#FAF9F6] transition inline-flex items-center gap-1.5 shadow-2xs">
+                        <svg class="w-3.5 h-3.5 text-[#008060]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                        <span>Inspect BSON</span>
                     </button>
                 </td>
             </tr>

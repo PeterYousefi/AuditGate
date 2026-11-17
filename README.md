@@ -1,8 +1,11 @@
 # 🛡️ AuditGate — Agents You Can Audit
 
+## 🌐 **Live Link: [https://auditgate.onrender.com/](https://auditgate.onrender.com/)**
+
 > **Hackathon MVP for the "Agents You Can Audit" Track**  
 > An autonomous AI customer support agent governed in real-time by **MongoDB Atlas** as the authoritative identity, policy, state, vector security, and tamper-proof audit layer, powered by **FastAPI**, **LangGraph**, **Gemini 2.5**, and **ElevenLabs**.
 
+[![Live App](https://img.shields.io/badge/Live%20App-auditgate.onrender.com-success?style=flat&logo=render)](https://auditgate.onrender.com/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20$jsonSchema%20+%20Vector-47A248.svg)](https://www.mongodb.com/atlas)
@@ -12,7 +15,8 @@
 
 ---
 
-### 🎥 **Featured Videos**
+### 🌐 **Live Demo & Presentation Videos**
+- **Live Demo Link:** **[https://auditgate.onrender.com/](https://auditgate.onrender.com/)**
 - **Presentation Video:** **[Watch the Presentation Video on YouTube](https://www.youtube.com/watch?v=rR1TLi4nz-I)**  
   `https://www.youtube.com/watch?v=rR1TLi4nz-I`
 - **Live Demo Video:** **[Watch the Demo Video on YouTube](https://www.youtube.com/watch?v=9Eub8QxFS7E)**  
